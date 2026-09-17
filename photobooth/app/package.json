@@ -1,0 +1,19 @@
+{
+  "name": "photobooth-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Portrait Android tablet photobooth (Capacitor)",
+  "scripts": {
+    "test": "node --test \"tests/*.test.mjs\"",
+    "sync": "cap sync android",
+    "apk:debug": "cap sync android && cd android && ./gradlew assembleDebug",
+    "apk:release": "cap sync android && cd android && ./gradlew assembleRelease"
+  },
+  "dependencies": {
+    "@capacitor/android": "8.5.2",
+    "@capacitor/core": "8.5.2"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.5.2"
+  }
+}

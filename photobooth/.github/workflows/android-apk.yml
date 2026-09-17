@@ -1,0 +1,120 @@
+name: Build APK
+
+# Push a tag like v1.0.3 to publish a GitHub Release with the APK attached.
+# "Run workflow" on the Actions tab builds an APK you can download as an artifact.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Backend handler tests
+        run: node --test "supabase/tests/*.test.ts"
+      - name: App rule tests
+        run: node --test "app/tests/*.test.mjs"
+
+  apk:
+    needs: test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    env:
+      APP_VERSION_CODE: ${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Version name
+        run: |
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            echo "APP_VERSION_NAME=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+          else
+            echo "APP_VERSION_NAME=0.0.${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
+          fi
+
+      - name: Write booth config from repository settings
+        env:
+          FUNCTIONS_URL: ${{ vars.FUNCTIONS_URL }}
+          PUBLISHABLE_KEY: ${{ vars.PUBLISHABLE_KEY }}
+          GUEST_PAGE_URL: ${{ vars.GUEST_PAGE_URL }}
+          EVENT_NAME: ${{ vars.EVENT_NAME }}
+          BOOTH_KEY: ${{ secrets.BOOTH_KEY }}
+        run: |
+          for name in FUNCTIONS_URL PUBLISHABLE_KEY GUEST_PAGE_URL BOOTH_KEY; do
+            if [[ -z "${!name}" ]]; then
+              echo "::error::Missing repository setting $name (see docs/SETUP.md)"
+              exit 1
+            fi
+          done
+          node -e '
+            const config = {
+              functionsUrl: process.env.FUNCTIONS_URL,
+              publishableKey: process.env.PUBLISHABLE_KEY,
+              boothKey: process.env.BOOTH_KEY,
+              guestPageUrl: process.env.GUEST_PAGE_URL,
+              eventName: process.env.EVENT_NAME || "",
+            };
+            require("fs").writeFileSync("www/config.js", "window.BOOTH_CONFIG = " + JSON.stringify(config, null, 2) + ";\n");
+          '
+
+      - run: npm ci
+
+      - run: npx cap sync android
+
+      - name: Restore signing key
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [[ -z "$ANDROID_KEYSTORE_BASE64" ]]; then
+            echo "::error::Missing secret ANDROID_KEYSTORE_BASE64. Unsigned APKs can't be installed (see docs/SETUP.md)"
+            exit 1
+          fi
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+
+      - name: Build signed release APK
+        working-directory: app/android
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon
+          mkdir -p "$GITHUB_WORKSPACE/dist"
+          cp app/build/outputs/apk/release/app-release.apk "$GITHUB_WORKSPACE/dist/photobooth-${APP_VERSION_NAME}.apk"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: photobooth-apk
+          path: dist/*.apk
+
+      - name: Publish release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.apk
+          generate_release_notes: true

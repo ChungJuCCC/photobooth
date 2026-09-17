@@ -1,0 +1,10 @@
+{
+  "appId": "kr.photobooth.booth",
+  "appName": "포토부스",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": false,
+    "captureInput": true,
+    "webContentsDebuggingEnabled": false
+  }
+}

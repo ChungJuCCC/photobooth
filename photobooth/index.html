@@ -1,0 +1,1474 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#000000">
+<meta name="color-scheme" content="dark">
+<title>충주CCC 포토부스</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@300;400;500;600;700&family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+
+<script>
+/* QR 라이브러리 멀티 CDN 폴백 로더 */
+(function(){
+  window.__qrReady = new Promise(function(resolve){
+    var urls = [
+      'https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js',
+      'https://cdn.jsdelivr.net/npm/qrious@4.0.2/dist/qrious.min.js',
+      'https://unpkg.com/qrious@4.0.2/dist/qrious.min.js'
+    ];
+    var i = 0;
+    function tryNext(){
+      if(i >= urls.length){ console.error('모든 QR CDN 실패'); resolve(false); return; }
+      var s = document.createElement('script');
+      s.src = urls[i++];
+      s.onload  = function(){ resolve(true); };
+      s.onerror = function(){ console.warn('QR CDN 실패:', s.src); tryNext(); };
+      document.head.appendChild(s);
+    }
+    tryNext();
+  });
+})();
+</script>
+
+<style>
+/* ══════════════════════════════════════════════════════════════════
+   디자인 토큰 — 모노톤 미니멀 (Swiss / 포토이즘 계열)
+   순수 흑백 · radius 0 · 그림자 없음 · 1px 하이라인
+   ══════════════════════════════════════════════════════════════════ */
+:root{
+  --bg:#000000;
+  --surface:#0C0C0C;
+  --surface-2:#161616;
+  --line:#262626;
+  --line-mid:#3A3A3A;
+  --line-strong:#5A5A5A;
+  --fg:#FAFAFA;
+  --fg-dim:#8A8A8A;
+  --fg-mute:#5A5A5A;
+  --inverse:#FFFFFF;
+  --on-inverse:#0A0A0A;
+
+  --pill:999px;
+  --tr:220ms cubic-bezier(.2,.7,.3,1);
+
+  --sans:'Noto Sans KR','Archivo',-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo',system-ui,sans-serif;
+  --mono:'Archivo','Noto Sans KR',system-ui,sans-serif;
+}
+
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden}
+
+body{
+  font-family:var(--sans);
+  background:var(--bg);color:var(--fg);
+  height:100dvh;
+  display:flex;align-items:center;justify-content:center;
+  -webkit-user-select:none;user-select:none;
+  touch-action:manipulation;
+  -webkit-font-smoothing:antialiased;
+}
+
+/* 카드형 버튼들의 UA 기본 스타일 제거 */
+.layout-card,.frame-card,.pick-cell{
+  appearance:none;-webkit-appearance:none;
+  font:inherit;color:inherit;border:none;background:none;
+  cursor:pointer;touch-action:manipulation;
+}
+
+/* ── 영문 트래킹 라벨 (포토이즘 시그니처) ─────────────────────────── */
+.eyebrow{
+  font-family:var(--mono);font-weight:500;
+  font-size:clamp(10px,1vw,12px);
+  letter-spacing:.28em;text-transform:uppercase;
+  color:var(--fg-mute);
+}
+
+.app{
+  position:relative;z-index:1;
+  width:100%;height:100dvh;
+  padding:max(12px,env(safe-area-inset-top)) 24px max(12px,env(safe-area-inset-bottom));
+  display:flex;flex-direction:column;align-items:center;
+}
+
+/* ── 스텝 인디케이터 ───────────────────────────────────────────── */
+.steps{
+  display:flex;align-items:center;gap:clamp(8px,1.4vw,18px);
+  flex-shrink:0;padding:8px 0 clamp(6px,1.4vh,16px);
+  flex-wrap:wrap;justify-content:center;
+}
+.steps.hide{visibility:hidden}
+.steps i{
+  font-family:var(--mono);font-style:normal;font-weight:500;
+  font-size:clamp(9px,.95vw,11px);letter-spacing:.24em;text-transform:uppercase;
+  color:var(--fg-mute);transition:color var(--tr);white-space:nowrap;
+}
+.steps i.on{color:var(--fg)}
+.steps b{font-weight:500}
+.steps s{width:clamp(10px,2vw,26px);height:1px;background:var(--line-mid);text-decoration:none;flex-shrink:0}
+
+.screen{
+  display:none;width:100%;flex:1;min-height:0;
+  flex-direction:column;align-items:center;
+  gap:clamp(10px,2vh,22px);
+  justify-content:center;
+  justify-content:safe center;
+  overflow-y:auto;overflow-x:hidden;
+  -webkit-overflow-scrolling:touch;
+  padding:2px 0;
+}
+.screen.active{display:flex;animation:fade .28s cubic-bezier(.2,.7,.3,1)}
+.screen>*{flex-shrink:0}
+@keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+/* ── 헤더 타이포 ────────────────────────────────────────────────── */
+.head{text-align:center;flex-shrink:0;display:flex;flex-direction:column;gap:8px;align-items:center}
+.title{
+  font-family:var(--sans);font-weight:700;
+  font-size:clamp(24px,3.4vw,40px);line-height:1.15;
+  letter-spacing:-.02em;color:var(--fg);
+}
+.title-en{
+  font-family:var(--mono);font-weight:600;
+  font-size:clamp(30px,4.6vw,54px);line-height:1;
+  letter-spacing:.16em;text-transform:uppercase;color:var(--fg);
+}
+.lead{
+  font-size:clamp(13px,1.4vw,16px);font-weight:300;
+  color:var(--fg-dim);letter-spacing:-.01em;
+}
+.lead b{color:var(--fg);font-weight:500}
+
+/* ── 버튼 ───────────────────────────────────────────────────────── */
+.btn{
+  appearance:none;cursor:pointer;
+  font-family:var(--sans);font-weight:500;
+  font-size:clamp(14px,1.4vw,16px);letter-spacing:-.01em;
+  min-height:60px;padding:16px 32px;border-radius:var(--pill);
+  background:var(--inverse);color:var(--on-inverse);
+  border:1px solid var(--inverse);
+  display:inline-flex;align-items:center;justify-content:center;gap:9px;
+  transition:opacity var(--tr),background var(--tr),color var(--tr),border-color var(--tr);
+  touch-action:manipulation;
+}
+.btn svg{width:18px;height:18px;flex-shrink:0}
+.btn:active:not(:disabled){opacity:.6}
+.btn:focus-visible{outline:2px solid var(--inverse);outline-offset:3px}
+.btn:disabled{opacity:.28;cursor:not-allowed}
+.btn.ghost{background:transparent;color:var(--fg);border-color:var(--line-mid)}
+.btn.ghost:active:not(:disabled){background:var(--surface-2);opacity:1}
+.btn.sm{min-height:48px;padding:12px 22px;font-size:clamp(12px,1.2vw,14px)}
+.btn.sm svg{width:15px;height:15px}
+.btn-row{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;align-items:center}
+.btn-row.col{flex-direction:column;align-items:stretch;width:100%}
+.btn-row.col .btn{width:100%}
+
+.back-btn{
+  position:absolute;top:max(14px,env(safe-area-inset-top));left:22px;z-index:5;
+  min-height:44px;padding:10px 18px;font-size:12px;letter-spacing:.06em;
+}
+
+/* ══ 1. 레이아웃 선택 ═══════════════════════════════════════════ */
+.layout-grid{display:flex;gap:clamp(14px,2.4vw,28px);flex-wrap:wrap;justify-content:center;align-items:stretch}
+.layout-card{
+  background:var(--surface);border:1px solid var(--line);
+  padding:clamp(22px,2.6vw,34px) clamp(22px,2.6vw,34px) clamp(18px,2vw,26px);
+  width:clamp(210px,24vw,280px);
+  display:flex;flex-direction:column;align-items:center;gap:16px;
+  transition:border-color var(--tr),background var(--tr);
+  animation:fade .4s cubic-bezier(.2,.7,.3,1) backwards;
+}
+.layout-card:nth-child(2){animation-delay:.06s}
+.layout-card:hover{border-color:var(--line-strong);background:var(--surface-2)}
+.layout-card:active{opacity:.7}
+/* 레이아웃 모양 미리보기 */
+.shape{display:grid;gap:5px;border:1px solid var(--line-mid);padding:8px}
+.shape i{background:var(--line-mid);display:block;transition:background var(--tr)}
+.layout-card:hover .shape i{background:var(--fg-dim)}
+.shape.vertical{grid-template-columns:1fr;height:158px;width:62px}
+.shape.vertical i{height:100%}
+.shape.grid{grid-template-columns:1fr 1fr;height:126px;width:154px}
+.layout-name{font-family:var(--sans);font-weight:500;font-size:clamp(15px,1.6vw,18px);color:var(--fg)}
+.layout-desc{font-size:12px;font-weight:300;color:var(--fg-mute);text-align:center;line-height:1.5}
+
+/* ══ 2. 프레임 선택 ═════════════════════════════════════════════ */
+.frame-scroll{
+  width:100%;max-width:1560px;overflow-x:auto;overflow-y:hidden;
+  padding:6px 8px 22px;-webkit-overflow-scrolling:touch;
+}
+.frame-scroll::-webkit-scrollbar{height:3px}
+.frame-scroll::-webkit-scrollbar-track{background:var(--line)}
+.frame-scroll::-webkit-scrollbar-thumb{background:var(--line-strong)}
+.frame-row{display:flex;gap:clamp(12px,1.6vw,22px);justify-content:flex-start;align-items:flex-end;min-width:min-content;padding:0 4px}
+.frame-card{
+  position:relative;flex-shrink:0;
+  display:flex;flex-direction:column;align-items:center;gap:10px;
+  transition:opacity var(--tr),transform var(--tr);
+}
+.frame-card canvas{
+  display:block;border:1px solid var(--line);
+  transition:border-color var(--tr);
+}
+.frame-card:hover canvas{border-color:var(--line-strong)}
+.frame-card:hover{transform:translateY(-4px)}
+.frame-card:active{opacity:.65}
+.frame-card .fname{
+  font-family:var(--mono);font-weight:500;
+  font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;
+  color:var(--fg-mute);transition:color var(--tr);
+}
+.frame-card:hover .fname{color:var(--fg)}
+
+/* ══ 3. 촬영 ═══════════════════════════════════════════════════ */
+.cam-wrap{display:flex;flex-direction:column;align-items:center;gap:clamp(10px,1.8vh,20px);width:100%}
+.cam-box{
+  position:relative;
+  width:min(640px,76vw);max-height:54vh;
+  aspect-ratio:499/396;
+  overflow:hidden;background:#000;
+  border:1px solid var(--line-mid);
+}
+#video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1);display:block}
+/* 구도 가이드 그리드 (3분할) */
+.cam-box::after{
+  content:"";position:absolute;inset:0;pointer-events:none;
+  background-image:
+    linear-gradient(to right,transparent 33.33%,rgba(255,255,255,.12) 33.33%,rgba(255,255,255,.12) calc(33.33% + 1px),transparent calc(33.33% + 1px)),
+    linear-gradient(to right,transparent 66.66%,rgba(255,255,255,.12) 66.66%,rgba(255,255,255,.12) calc(66.66% + 1px),transparent calc(66.66% + 1px)),
+    linear-gradient(to bottom,transparent 33.33%,rgba(255,255,255,.12) 33.33%,rgba(255,255,255,.12) calc(33.33% + 1px),transparent calc(33.33% + 1px)),
+    linear-gradient(to bottom,transparent 66.66%,rgba(255,255,255,.12) 66.66%,rgba(255,255,255,.12) calc(66.66% + 1px),transparent calc(66.66% + 1px));
+}
+.countdown{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  font-family:var(--mono);font-weight:300;
+  font-size:clamp(96px,17vw,200px);color:#fff;line-height:1;
+  pointer-events:none;opacity:0;z-index:2;
+}
+.countdown.show{animation:cd .78s cubic-bezier(.2,.7,.3,1)}
+@keyframes cd{
+  0%{opacity:0;transform:scale(1.25)}
+  25%{opacity:1;transform:scale(1)}
+  75%{opacity:1;transform:scale(1)}
+  100%{opacity:0;transform:scale(.94)}
+}
+.flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:3}
+.flash.fire{animation:fl .42s cubic-bezier(.2,.7,.3,1)}
+@keyframes fl{0%{opacity:0}8%{opacity:1}100%{opacity:0}}
+.rec{
+  position:absolute;top:14px;left:14px;z-index:2;
+  font-family:var(--mono);font-weight:500;font-size:10px;letter-spacing:.24em;
+  color:#fff;display:flex;align-items:center;gap:7px;
+  opacity:0;transition:opacity var(--tr);pointer-events:none;
+}
+.rec.on{opacity:1}
+.rec-dot{width:6px;height:6px;background:#fff;border-radius:50%;animation:blink 1s steps(1,end) infinite}
+@keyframes blink{0%,50%{opacity:1}50.01%,100%{opacity:.15}}
+
+.progress{width:min(640px,76vw);display:flex;align-items:center;gap:16px}
+.progress-track{flex:1;height:1px;background:var(--line-mid);overflow:hidden}
+.progress-fill{height:100%;width:0;background:var(--fg);transition:width .4s cubic-bezier(.2,.7,.3,1)}
+.progress-num{
+  font-family:var(--mono);font-weight:500;font-size:clamp(11px,1.2vw,13px);
+  letter-spacing:.2em;color:var(--fg-dim);min-width:72px;text-align:right;
+  font-variant-numeric:tabular-nums;
+}
+
+.shots-strip{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;max-width:min(700px,88vw)}
+.shot-dot{
+  width:clamp(42px,5.2vw,60px);aspect-ratio:499/396;
+  background:var(--surface);border:1px solid var(--line);
+  display:flex;align-items:center;justify-content:center;overflow:hidden;
+  font-family:var(--mono);font-weight:500;font-size:11px;letter-spacing:.1em;
+  color:var(--fg-mute);transition:border-color var(--tr),opacity var(--tr);
+}
+.shot-dot.filled{border-color:var(--line-mid);background:#000;animation:fade .3s cubic-bezier(.2,.7,.3,1)}
+.shot-dot.now{border-color:var(--fg);animation:nowPulse 1.2s ease-in-out infinite}
+@keyframes nowPulse{0%,100%{opacity:1}50%{opacity:.45}}
+.shot-dot img{width:100%;height:100%;object-fit:cover;display:block}
+
+.status{
+  text-align:center;font-size:clamp(13px,1.4vw,15px);font-weight:300;
+  color:var(--fg-dim);min-height:24px;letter-spacing:-.01em;
+}
+
+/* ══ 4. 8장 중 4장 고르기 ═══════════════════════════════════════ */
+.pick-layout{
+  display:grid;grid-template-columns:minmax(0,1fr) auto;
+  gap:clamp(18px,2.6vw,40px);align-items:center;
+  width:100%;max-width:1420px;
+}
+.pick-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:clamp(8px,1vw,14px);width:100%}
+.pick-cell{
+  position:relative;overflow:hidden;
+  aspect-ratio:499/396;background:var(--surface);
+  border:1px solid var(--line);
+  transition:border-color var(--tr),opacity var(--tr);
+  min-height:70px;
+}
+.pick-cell img{width:100%;height:100%;object-fit:cover;display:block;transition:opacity var(--tr),filter var(--tr)}
+.pick-cell:active{opacity:.7}
+.pick-cell:focus-visible{outline:2px solid var(--inverse);outline-offset:2px}
+.pick-cell:not(.on) img{filter:grayscale(1) brightness(.42)}
+.pick-cell.on{border-color:var(--fg)}
+.pick-cell .order{
+  position:absolute;top:0;left:0;
+  min-width:30px;height:30px;padding:0 8px;
+  background:var(--inverse);color:var(--on-inverse);
+  font-family:var(--mono);font-weight:600;font-size:13px;letter-spacing:.06em;
+  display:none;align-items:center;justify-content:center;
+}
+.pick-cell.on .order{display:flex;animation:fade .22s cubic-bezier(.2,.7,.3,1)}
+.pick-cell .no{
+  position:absolute;top:0;left:0;
+  min-width:30px;height:30px;padding:0 8px;
+  background:rgba(0,0,0,.55);color:var(--fg-mute);
+  font-family:var(--mono);font-weight:500;font-size:12px;letter-spacing:.06em;
+  display:flex;align-items:center;justify-content:center;
+}
+.pick-cell.on .no{display:none}
+
+.pick-side{display:flex;flex-direction:column;align-items:center;gap:16px;min-width:clamp(200px,21vw,260px)}
+.preview-box{border:1px solid var(--line);padding:6px;background:var(--surface)}
+.preview-box canvas{display:block;max-height:min(44vh,400px);max-width:min(280px,30vw);width:auto;height:auto}
+.pick-count{
+  font-family:var(--mono);font-weight:500;font-size:clamp(11px,1.2vw,13px);
+  letter-spacing:.22em;color:var(--fg-dim);font-variant-numeric:tabular-nums;
+}
+.pick-count b{color:var(--fg);font-weight:600}
+
+/* ══ 5. 결과 ═══════════════════════════════════════════════════ */
+.result-layout{
+  display:grid;grid-template-columns:auto minmax(250px,320px);
+  gap:clamp(22px,3.4vw,56px);align-items:center;width:100%;max-width:1440px;justify-content:center;
+}
+.result-art{border:1px solid var(--line);padding:7px;background:var(--surface);animation:fade .5s cubic-bezier(.2,.7,.3,1)}
+.result-art canvas{display:block;max-height:min(72vh,740px);width:auto;height:auto;max-width:100%}
+.result-panel{display:flex;flex-direction:column;align-items:center;gap:16px;width:100%}
+.result-title{
+  font-family:var(--mono);font-weight:600;
+  font-size:clamp(24px,3vw,38px);letter-spacing:.16em;text-transform:uppercase;
+  color:var(--fg);text-align:center;
+}
+.qr-card{background:var(--inverse);padding:12px;display:flex;flex-direction:column;align-items:center;gap:9px}
+.qr-card canvas{display:block;width:clamp(126px,14vw,168px);height:clamp(126px,14vw,168px)}
+.qr-cap{
+  font-family:var(--mono);font-weight:500;font-size:9.5px;letter-spacing:.16em;
+  text-transform:uppercase;color:#4A4A4A;text-align:center;line-height:1.7;max-width:180px;
+}
+.vid-note{font-size:11.5px;font-weight:300;color:var(--fg-mute);text-align:center;min-height:16px;letter-spacing:-.01em}
+
+/* ══ 에러 ══════════════════════════════════════════════════════ */
+.err-card{
+  background:var(--surface);border:1px solid var(--line);
+  padding:clamp(30px,4vw,48px);max-width:600px;text-align:center;
+  display:flex;flex-direction:column;align-items:center;gap:14px;
+}
+.err-card h2{font-family:var(--sans);font-weight:700;font-size:clamp(19px,2.4vw,26px);color:var(--fg);letter-spacing:-.02em}
+.err-card p{font-size:clamp(13px,1.5vw,15px);font-weight:300;line-height:1.7;color:var(--fg-dim)}
+.err-card code{background:var(--surface-2);border:1px solid var(--line);padding:2px 7px;font-family:var(--mono);font-size:.88em;color:var(--fg-dim)}
+.err-card .btn{margin-top:8px}
+
+.spin{width:15px;height:15px;border:1.5px solid currentColor;border-top-color:transparent;border-radius:50%;animation:spin .7s linear infinite;display:inline-block;opacity:.8}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ══ 반응형 ════════════════════════════════════════════════════
+   좁은 화면(태블릿 세로)에서는 요소가 세로로 쌓여 조작 버튼이
+   화면 밖으로 밀립니다. 미리보기를 줄이고 좌우로 붙여 한 화면에 담습니다.
+   ※ 반드시 위의 기본 규칙들보다 뒤에 와야 덮어쓰기가 됩니다. */
+@media(max-width:900px),(orientation:portrait){
+  .pick-layout{grid-template-columns:1fr;justify-items:center}
+  .pick-side{flex-direction:row;flex-wrap:wrap;justify-content:center;align-items:center;gap:12px 22px;width:100%}
+  .preview-box canvas{max-height:min(25vh,240px);max-width:min(180px,25vw)}
+  .pick-count{width:100%;order:-1}
+  .pick-side .btn-row.col{width:auto;min-width:230px;max-width:320px}
+}
+@media(max-width:900px){
+  .result-layout{grid-template-columns:1fr;justify-items:center;gap:16px}
+  .result-art canvas{max-height:min(45vh,520px)}
+  .result-panel{flex-direction:row;flex-wrap:wrap;justify-content:center;align-items:center;gap:12px 24px}
+  .result-title{width:100%;font-size:clamp(21px,4vw,30px)}
+  .btn-row.col{width:auto;min-width:240px;max-width:330px}
+  .vid-note{width:100%}
+  .qr-card canvas{width:clamp(108px,16vw,142px);height:clamp(108px,16vw,142px)}
+}
+/* 8칸은 4열 2행 유지. 2열로 떨어지면 4행이 되어 버튼이 화면 밖으로 밀립니다. */
+@media(max-width:460px){.pick-grid{grid-template-columns:repeat(2,1fr)}}
+
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <nav class="steps" id="steps" aria-label="진행 단계">
+    <i data-step="1">01 <b>Layout</b></i><s></s>
+    <i data-step="2">02 <b>Frame</b></i><s></s>
+    <i data-step="3">03 <b>Shoot</b></i><s></s>
+    <i data-step="4">04 <b>Select</b></i><s></s>
+    <i data-step="5">05 <b>Save</b></i>
+  </nav>
+
+  <!-- ═══ 1. 레이아웃 선택 ═══════════════════════════════════ -->
+  <section class="screen active" id="s-layout">
+    <div class="head">
+      <p class="eyebrow">Chungju CCC · 2026 Summer</p>
+      <h1 class="title-en">Photo Booth</h1>
+      <p class="lead">사진을 담을 <b>모양</b>을 선택하세요</p>
+    </div>
+    <div class="layout-grid" id="layout-grid"></div>
+  </section>
+
+  <!-- ═══ 2. 프레임 선택 ═════════════════════════════════════ -->
+  <section class="screen" id="s-frame">
+    <button class="btn ghost sm back-btn" id="btn-back-layout">← Back</button>
+    <div class="head">
+      <p class="eyebrow">Step 02</p>
+      <h1 class="title">프레임 선택</h1>
+      <p class="lead">디자인을 선택하면 <b>바로 촬영</b>이 시작됩니다</p>
+    </div>
+    <div class="frame-scroll"><div class="frame-row" id="frame-row"></div></div>
+  </section>
+
+  <!-- ═══ 3. 촬영 ════════════════════════════════════════════ -->
+  <section class="screen" id="s-cam">
+    <div class="head">
+      <p class="eyebrow">Step 03 · Shooting</p>
+      <h1 class="title">8장을 촬영합니다</h1>
+    </div>
+    <div class="cam-wrap">
+      <div class="cam-box">
+        <video id="video" autoplay playsinline muted></video>
+        <div class="countdown" id="countdown"></div>
+        <div class="flash" id="flash"></div>
+        <div class="rec" id="rec"><span class="rec-dot"></span>REC</div>
+      </div>
+      <div class="progress">
+        <div class="progress-track"><div class="progress-fill" id="prog-fill"></div></div>
+        <div class="progress-num" id="prog-num">01 / 08</div>
+      </div>
+      <div class="shots-strip" id="shots-strip"></div>
+    </div>
+    <p class="status" id="status">곧 촬영을 시작합니다</p>
+  </section>
+
+  <!-- ═══ 4. 8장 중 4장 고르기 ═══════════════════════════════ -->
+  <section class="screen" id="s-pick">
+    <div class="head">
+      <p class="eyebrow">Step 04 · Select 4 of 8</p>
+      <h1 class="title">마음에 드는 4장</h1>
+      <p class="lead">탭하여 선택 · 다시 탭하면 해제</p>
+    </div>
+    <div class="pick-layout">
+      <div class="pick-grid" id="pick-grid"></div>
+      <div class="pick-side">
+        <p class="pick-count" id="pick-count"><b>4</b> / 4 Selected</p>
+        <div class="preview-box"><canvas id="preview-canvas"></canvas></div>
+        <div class="btn-row col">
+          <button class="btn" id="btn-confirm">완성하기</button>
+          <button class="btn ghost sm" id="btn-reshoot">다시 촬영</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ 5. 결과 ════════════════════════════════════════════ -->
+  <section class="screen" id="s-result">
+    <div class="result-layout" id="result-layout">
+      <div class="result-art"><canvas id="result-canvas"></canvas></div>
+      <div class="result-panel">
+        <h1 class="result-title">Complete</h1>
+        <div class="qr-card">
+          <canvas id="qr-canvas"></canvas>
+          <p class="qr-cap" id="qr-cap">Uploading</p>
+        </div>
+        <div class="btn-row col">
+          <button class="btn" id="btn-save-photo">사진 저장</button>
+          <button class="btn ghost" id="btn-save-video" disabled>동영상 준비 중</button>
+          <button class="btn ghost sm" id="btn-save-qr">QR 이미지 저장</button>
+          <button class="btn ghost sm" id="btn-restart">처음으로</button>
+        </div>
+        <p class="vid-note" id="vid-note"></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ 에러 ═══════════════════════════════════════════════ -->
+  <section class="screen" id="s-error">
+    <div class="err-card">
+      <p class="eyebrow">Camera</p>
+      <h2>카메라 권한이 필요합니다</h2>
+      <p id="err-msg">브라우저에서 카메라 사용을 허용해주세요.</p>
+      <button class="btn" id="btn-retry">다시 시도</button>
+    </div>
+  </section>
+</div>
+
+<!-- 프레임 설정 (frames/_frames.js) -->
+<script src="frames/_frames.js"></script>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════
+   설정
+   ═══════════════════════════════════════════════════════════════════ */
+const CFG = {
+  SHOT_COUNT:      8,      // 총 촬영 장수
+  PICK_COUNT:      4,      // 그중 고를 장수
+  CLIP_MS:         1300,   // 컷당 영상 클립 길이
+  PHOTO_AT_MS:     650,    // 클립 안에서 스틸이 찍히는 시점
+  VIDEO_MS:        5000,   // 최종 합성 영상 길이
+  FPS:             30,
+  COUNT_FIRST:     3,      // 첫 컷 카운트다운 (3-2-1)
+  COUNT_REST:      2,      // 이후 컷 카운트다운 (2-1)
+  COUNT_TICK_MS:   750,
+
+  /* ── 사진·영상 보관 시간 ────────────────────────────────────────
+     참가자에게 안내되는 "N시간 뒤 삭제" 문구가 이 값에서 나옵니다.
+     짧을수록 개인정보 노출이 줄지만, 현장 셀룰러가 약하면 참가자가
+     나중에 받으러 왔을 때 링크가 죽어 있을 수 있습니다.          */
+  RETENTION_HOURS:    4,      // 1순위(0x0.st)에 요청하는 보관 시간 (원하는 값)
+  RETENTION_FALLBACK: '1h',   // litterbox 프리셋: '1h'|'12h'|'24h'|'72h' 만 가능.
+                              // 4h 프리셋이 없어 1h 를 씁니다. 12h 로 올리면
+                              // 폴백이 탔을 때 의도한 4시간보다 오래 남습니다.
+                              // 참가자에게 보이는 문구는 실제 보관 시간을
+                              // 그대로 따라가므로 어느 쪽이든 거짓말은 안 됩니다.
+
+  /* ── Supabase 연동 (다음 단계에서 켜세요) ────────────────────────
+     1) 아래 ENABLED 를 true 로
+     2) URL / ANON_KEY / BUCKET 채우기
+     3) Supabase 대시보드에서 Storage 버킷을 public 으로 만들고
+        insert 정책만 열어두면 됩니다.                              */
+  SUPABASE: {
+    ENABLED:  false,
+    URL:      '',                    // https://xxxx.supabase.co
+    ANON_KEY: '',
+    BUCKET:   'photobooth',
+  },
+};
+
+const P = window.PHOTOBOOTH;
+if (!P) {
+  document.body.innerHTML =
+    '<div style="color:#fafafa;font:300 15px/1.8 system-ui,sans-serif;padding:40px;text-align:center">' +
+    'frames/_frames.js 를 불러오지 못했습니다.<br><br>' +
+    '<code style="background:#161616;border:1px solid #262626;padding:5px 10px">npx serve .</code> 처럼 ' +
+    '<b>웹서버로 열어야</b> 동작합니다.<br>(file:// 로 직접 열면 안 됩니다)</div>';
+  throw new Error('frames/_frames.js not loaded');
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   환경 감지
+   ═══════════════════════════════════════════════════════════════════ */
+const IS_IOS = /iP(hone|ad|od)/.test(navigator.userAgent) ||
+               (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const CAN_RECORD = typeof MediaRecorder !== 'undefined' &&
+                   typeof HTMLCanvasElement.prototype.captureStream === 'function';
+
+/* ═══════════════════════════════════════════════════════════════════
+   뷰 모드 (QR 로 들어왔을 때 = 참가자 휴대폰 화면)
+   모바일 바텀시트 패턴
+   ═══════════════════════════════════════════════════════════════════ */
+const _q = new URLSearchParams(location.search);
+const IS_VIEW = _q.has('view') && !!_q.get('p');
+
+/* 보관 시간 안내 문구.
+   exp 값이 없거나 이상하면 시간을 단정하지 않습니다.
+   (실제보다 짧게 안내하면 참가자를 속이는 셈이 되기 때문) */
+function expiryNotice(expHours){
+  const h = parseInt(expHours, 10);
+  if (!h || h < 1 || h > 24 * 30) return '이 링크는 일정 시간 뒤 만료됩니다 · 지금 저장해주세요';
+  return h + '시간 뒤 자동으로 삭제됩니다 · 지금 저장해주세요';
+}
+
+function renderViewMode(photoUrl, videoUrl, ts, expHours){
+  document.title = '충주CCC 포토부스';
+  document.querySelector('.app').remove();
+  document.documentElement.style.overflow = 'auto';
+  document.body.style.cssText += ';height:auto;min-height:100dvh;display:block;overflow:auto;background:#000';
+
+  const dateLabel = (ts && ts.length >= 8)
+    ? ts.slice(0,4)+'.'+ts.slice(4,6)+'.'+ts.slice(6,8) : '';
+  const vExt = videoUrl ? ((videoUrl.match(/\.(mp4|webm|mov)(?:\?|$)/i)||[])[1]||'mp4').toLowerCase() : 'mp4';
+
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'max-width:460px;margin:0 auto;padding:26px 20px 240px;text-align:center';
+  wrap.innerHTML =
+    '<p class="eyebrow" style="margin-bottom:10px">Chungju CCC · '+dateLabel+'</p>'+
+    '<h1 style="font-family:var(--mono);font-weight:600;font-size:24px;letter-spacing:.16em;text-transform:uppercase;margin-bottom:22px">Photo Booth</h1>'+
+    '<div style="border:1px solid #262626;padding:7px;background:#0C0C0C;display:inline-block;max-width:100%">'+
+      '<img src="'+photoUrl+'" alt="완성된 인생네컷 사진" style="display:block;max-width:100%;max-height:56vh">'+
+    '</div>'+
+    (videoUrl
+      ? '<div style="border:1px solid #262626;padding:7px;background:#0C0C0C;display:inline-block;max-width:100%;margin-top:14px">'+
+        '<video src="'+videoUrl+'" controls playsinline preload="metadata" style="display:block;max-width:100%;max-height:56vh"></video></div>'
+      : '<p style="font-size:12px;font-weight:300;color:#5A5A5A;margin-top:16px">이번엔 영상이 없습니다</p>');
+  document.body.appendChild(wrap);
+
+  /* ── 바텀시트: 저장 버튼 + iOS 안내 ───────────────────────── */
+  const sheet = document.createElement('div');
+  sheet.style.cssText =
+    'position:fixed;left:0;right:0;bottom:0;z-index:10;background:#0C0C0C;'+
+    'border-top:1px solid #262626;padding:18px 20px calc(18px + env(safe-area-inset-bottom));'+
+    'display:flex;flex-direction:column;gap:10px;max-width:460px;margin:0 auto';
+  sheet.innerHTML =
+    '<div style="width:34px;height:3px;background:#3A3A3A;margin:0 auto 6px"></div>'+
+    (IS_IOS
+      ? '<p style="font-size:11.5px;font-weight:300;color:#8A8A8A;line-height:1.65;text-align:center;margin-bottom:2px">'+
+        '저장을 누르면 공유창이 열립니다 → <span style="color:#FAFAFA">이미지 저장</span> 선택<br>'+
+        '<span style="color:#5A5A5A">공유창이 안 뜨면 사진을 길게 눌러 저장하세요</span></p>'
+      : '')+
+    '<div id="v-btns" style="display:flex;flex-direction:column;gap:9px"></div>'+
+    '<p style="font-size:10px;font-weight:300;color:#5A5A5A;text-align:center;margin-top:4px;letter-spacing:.04em">'+
+    expiryNotice(expHours) + '</p>';
+  document.body.appendChild(sheet);
+
+  const btns = sheet.querySelector('#v-btns');
+  btns.appendChild(makeSaveButton(photoUrl, '충주CCC_사진_'+ts+'.jpg', 'image/jpeg', '사진 저장', 'btn'));
+  if (videoUrl)
+    btns.appendChild(makeSaveButton(videoUrl, '충주CCC_영상_'+ts+'.'+vExt, 'video/'+vExt, '동영상 저장', 'btn ghost'));
+}
+
+/* 원격 URL을 받아 공유/다운로드 해주는 버튼 (아이폰은 공유시트 우선) */
+function makeSaveButton(url, filename, mime, label, cls){
+  const b = document.createElement('button');
+  b.className = cls;
+  b.textContent = label;
+  b.addEventListener('click', async () => {
+    const orig = b.textContent;
+    b.disabled = true; b.textContent = '준비 중';
+    try{
+      const res = await fetch(url, { mode:'cors' });
+      if(!res.ok) throw new Error('HTTP '+res.status);
+      await shareOrDownload(await res.blob(), filename, mime);
+    }catch(e){
+      console.warn('저장 실패, 새 탭으로 폴백:', e);
+      window.open(url, '_blank', 'noopener');
+    }finally{
+      b.disabled = false; b.textContent = orig;
+    }
+  });
+  return b;
+}
+
+/* 공유시트(iOS) → 실패하면 다운로드(안드로이드/PC) */
+async function shareOrDownload(blob, filename, mime){
+  try{
+    const file = new File([blob], filename, { type: mime });
+    if (navigator.canShare && navigator.canShare({ files:[file] })) {
+      await navigator.share({ files:[file], title:'충주CCC 포토부스' });
+      return;
+    }
+  }catch(e){
+    if (e && e.name === 'AbortError') return;   // 사용자가 공유 취소 → 정상
+    console.warn('공유 실패, 다운로드로 폴백:', e);
+  }
+  const u = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = u; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(u), 8000);
+}
+
+if (IS_VIEW) renderViewMode(_q.get('p'), _q.get('v') || '', _q.get('ts') || '', _q.get('exp'));
+
+/* ═══════════════════════════════════════════════════════════════════
+   이 아래는 키오스크 모드 전용
+   ═══════════════════════════════════════════════════════════════════ */
+if (!IS_VIEW) (function kiosk(){
+
+const $  = id => document.getElementById(id);
+const wait = ms => new Promise(r => setTimeout(r, ms));
+const pad2 = n => String(n).padStart(2, '0');
+
+/* ── 상태 ───────────────────────────────────────────────────────── */
+let stream       = null;
+let shots        = [];      // [{img: HTMLImageElement, clip: Blob|null}]
+let picked       = [];      // shots 의 인덱스 배열 (선택 순서대로)
+let curLayout    = null;    // 'vertical' | 'grid'
+let curFrame     = null;
+let videoBlob    = null;
+let videoExt     = 'webm';
+let uploadToken  = 0;       // 재촬영 시 이전 업로드 무시용
+const imgCache   = {};      // frame.src -> HTMLImageElement
+
+const SCREEN_STEP = { 's-layout':1, 's-frame':2, 's-cam':3, 's-pick':4, 's-result':5 };
+
+function show(id){
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  $(id).classList.add('active');
+  const step = SCREEN_STEP[id] || 0;
+  $('steps').classList.toggle('hide', !step);
+  document.querySelectorAll('.steps i').forEach(el => {
+    el.classList.toggle('on', +el.dataset.step === step);
+  });
+}
+function setStatus(t){ $('status').textContent = t; }
+
+/* ── 프레임 PNG 로더 ────────────────────────────────────────────── */
+function loadImg(src){
+  if (imgCache[src]) return Promise.resolve(imgCache[src]);
+  return new Promise((res, rej) => {
+    const im = new Image();
+    im.crossOrigin = 'anonymous';
+    im.onload  = () => { imgCache[src] = im; res(im); };
+    im.onerror = () => rej(new Error('프레임 이미지 로드 실패: ' + src));
+    im.src = src;
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   합성 엔진 — 사진 / 영상 / 미리보기가 전부 이걸 씁니다
+   ═══════════════════════════════════════════════════════════════════ */
+function roundClip(ctx, x, y, w, h, r){
+  const rr = Math.min(r, w/2, h/2);
+  ctx.beginPath();
+  ctx.moveTo(x+rr, y);
+  ctx.arcTo(x+w, y,   x+w, y+h, rr);
+  ctx.arcTo(x+w, y+h, x,   y+h, rr);
+  ctx.arcTo(x,   y+h, x,   y,   rr);
+  ctx.arcTo(x,   y,   x+w, y,   rr);
+  ctx.closePath();
+}
+
+/* 소스(이미지/비디오)를 슬롯에 cover 방식으로 채워 그림 */
+function drawCover(ctx, src, slot, radius, mirror){
+  const sw = src.videoWidth  || src.naturalWidth  || src.width;
+  const sh = src.videoHeight || src.naturalHeight || src.height;
+  if (!sw || !sh) return false;
+
+  const want = slot.w / slot.h;
+  let cw, ch, cx, cy;
+  if (sw/sh > want){ ch = sh; cw = sh*want; cx = (sw-cw)/2; cy = 0; }
+  else             { cw = sw; ch = sw/want; cx = 0;         cy = (sh-ch)/2; }
+
+  ctx.save();
+  if (radius > 0){ roundClip(ctx, slot.x, slot.y, slot.w, slot.h, radius); ctx.clip(); }
+  if (mirror){ ctx.translate(slot.x + slot.w, slot.y); ctx.scale(-1, 1); ctx.drawImage(src, cx, cy, cw, ch, 0, 0, slot.w, slot.h); }
+  else       { ctx.drawImage(src, cx, cy, cw, ch, slot.x, slot.y, slot.w, slot.h); }
+  ctx.restore();
+  return true;
+}
+
+/* 프레임 배경 (사진 깔기 전) */
+function paintBg(ctx, frame){
+  ctx.clearRect(0, 0, frame.w, frame.h);
+  if (frame.builtin) frame.paintBackground(ctx);
+  else { ctx.fillStyle = frame.bg || '#0C0C0C'; ctx.fillRect(0, 0, frame.w, frame.h); }
+}
+/* 프레임 오버레이 (사진 깔은 후) */
+async function paintOverlay(ctx, frame){
+  if (frame.builtin) frame.paintOverlay(ctx);
+  else ctx.drawImage(await loadImg(frame.src), 0, 0, frame.w, frame.h);
+}
+
+/* 결과 사진 한 장을 캔버스에 완성 */
+async function renderPhoto(canvas, frame, sources){
+  await document.fonts.ready.catch(()=>{});
+  canvas.width = frame.w; canvas.height = frame.h;
+  const ctx = canvas.getContext('2d');
+  paintBg(ctx, frame);
+  for (let i = 0; i < frame.slots.length; i++){
+    if (sources[i]) drawCover(ctx, sources[i], frame.slots[i], frame.slotRadius, false);
+  }
+  await paintOverlay(ctx, frame);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   화면 1 — 레이아웃 선택
+   ═══════════════════════════════════════════════════════════════════ */
+function buildLayoutScreen(){
+  const box = $('layout-grid');
+  box.innerHTML = '';
+  for (const key of Object.keys(P.LAYOUTS)){
+    const L = P.LAYOUTS[key];
+    const card = document.createElement('button');
+    card.className = 'layout-card';
+    card.type = 'button';
+    card.setAttribute('aria-label', L.label + ' — ' + L.desc);
+    card.innerHTML =
+      '<div class="shape '+key+'">' + '<i></i>'.repeat(L.slots.length) + '</div>'+
+      '<div style="display:flex;flex-direction:column;align-items:center;gap:5px">'+
+        '<span class="eyebrow">'+L.en+'</span>'+
+        '<span class="layout-name">'+L.label+'</span>'+
+      '</div>'+
+      '<div class="layout-desc">'+L.desc+'</div>';
+    card.addEventListener('click', () => { curLayout = key; buildFrameScreen(); show('s-frame'); });
+    box.appendChild(card);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   화면 2 — 프레임 선택 (현재 레이아웃 것만)
+   ═══════════════════════════════════════════════════════════════════ */
+const PREVIEW_H = { vertical: 372, grid: 300 };
+
+function buildFrameScreen(){
+  const row = $('frame-row');
+  row.innerHTML = '';
+  const list = P.FRAMES.filter(f => f.layout === curLayout);
+
+  if (!list.length){
+    row.innerHTML = '<p class="lead" style="padding:34px">이 모양에 쓸 프레임이 없습니다. frames/_frames.js 를 확인해주세요.</p>';
+    return;
+  }
+
+  for (const f of list){
+    const card = document.createElement('button');
+    card.className = 'frame-card';
+    card.type = 'button';
+    card.setAttribute('aria-label', f.name + ' 프레임으로 촬영 시작');
+
+    const cv = document.createElement('canvas');
+    const h  = PREVIEW_H[f.layout] || 300;
+    cv.style.height = h + 'px';
+    cv.style.width  = Math.round(f.w / f.h * h) + 'px';
+    card.appendChild(cv);
+
+    const tag = document.createElement('span');
+    tag.className = 'fname';
+    tag.textContent = f.en || f.name;
+    card.appendChild(tag);
+
+    card.addEventListener('click', () => startShooting(f));
+    row.appendChild(card);
+
+    renderFramePreview(cv, f, h).catch(e => console.warn('프레임 미리보기 실패', f.id, e));
+  }
+}
+
+/* 더미 사진으로 프레임 미리보기를 그림 */
+async function renderFramePreview(cv, frame, h){
+  const scale = h / frame.h;
+  cv.width  = Math.round(frame.w * scale);
+  cv.height = Math.round(frame.h * scale);
+  const ctx = cv.getContext('2d');
+  ctx.scale(scale, scale);
+  await document.fonts.ready.catch(()=>{});
+  paintBg(ctx, frame);
+  frame.slots.forEach((s, i) => {
+    const g = ctx.createLinearGradient(s.x, s.y, s.x + s.w, s.y + s.h);
+    g.addColorStop(0, i % 2 ? '#5E5E5E' : '#4A4A4A');
+    g.addColorStop(1, i % 2 ? '#3A3A3A' : '#2E2E2E');
+    ctx.save();
+    if (frame.slotRadius > 0){ roundClip(ctx, s.x, s.y, s.w, s.h, frame.slotRadius); ctx.clip(); }
+    ctx.fillStyle = g; ctx.fillRect(s.x, s.y, s.w, s.h);
+    ctx.restore();
+  });
+  await paintOverlay(ctx, frame);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   화면 3 — 촬영
+   ═══════════════════════════════════════════════════════════════════ */
+const video = $('video');
+
+async function startCamera(){
+  try{
+    stream = await navigator.mediaDevices.getUserMedia({
+      video:{ width:{ideal:1280}, height:{ideal:960}, facingMode:'user', frameRate:{ideal:30} },
+      audio:false
+    });
+    video.srcObject = stream;
+    await video.play();
+    return true;
+  }catch(err){
+    const m = $('err-msg');
+    if (err.name === 'NotAllowedError')
+      m.innerHTML = '카메라 사용이 거부되었습니다.<br>주소창의 자물쇠 아이콘을 눌러 카메라를 <b>허용</b>으로 바꿔주세요.';
+    else if (err.name === 'NotFoundError')
+      m.innerHTML = '카메라를 찾을 수 없습니다.<br>기기에 전면 카메라가 있는지 확인해주세요.';
+    else if (location.protocol !== 'https:' && location.hostname !== 'localhost')
+      m.innerHTML = '카메라는 <b>HTTPS</b>에서만 동작합니다.<br>주소가 <code>https://</code> 인지 확인해주세요.';
+    else
+      m.innerHTML = '카메라 오류: <code>' + (err.message || err.name) + '</code>';
+    show('s-error');
+    return false;
+  }
+}
+function stopCamera(){
+  if (stream){ stream.getTracks().forEach(t => t.stop()); stream = null; }
+  video.srcObject = null;
+}
+
+function pickClipMime(){
+  const c = IS_IOS
+    ? ['video/mp4','video/mp4;codecs=avc1','video/webm']
+    : ['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm','video/mp4'];
+  for (const m of c) if (MediaRecorder.isTypeSupported(m)) return m;
+  return '';
+}
+function pickOutMime(){
+  const c = IS_IOS
+    ? ['video/mp4;codecs=avc1.42E01F','video/mp4;codecs=avc1','video/mp4']
+    : ['video/mp4;codecs=avc1.42E01F','video/mp4','video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'];
+  for (const m of c) if (MediaRecorder.isTypeSupported(m)) return m;
+  return '';
+}
+
+/* 미러링된 스틸 1장 캡처 → "로드 완료된" JPEG Image 로 반환
+   (Image 로 바꾸는 이유: iOS Safari 의 캔버스 메모리 상한을 피하기 위함) */
+async function grabStill(){
+  const vw = video.videoWidth, vh = video.videoHeight;
+  if (!vw || !vh) return null;
+  const want = P.PHOTO_RATIO;
+  let cw, ch, cx, cy;
+  if (vw/vh > want){ ch = vh; cw = vh*want; cx = (vw-cw)/2; cy = 0; }
+  else             { cw = vw; ch = vw/want; cx = 0;         cy = (vh-ch)/2; }
+
+  const cv = document.createElement('canvas');
+  cv.width = 998; cv.height = Math.round(998 / want);
+  const ctx = cv.getContext('2d');
+  ctx.translate(cv.width, 0); ctx.scale(-1, 1);          // 셀카 미러링
+  ctx.drawImage(video, cx, cy, cw, ch, 0, 0, cv.width, cv.height);
+
+  const url = cv.toDataURL('image/jpeg', 0.92);
+  cv.width = cv.height = 0;                               // 캔버스 즉시 해제
+
+  const im = new Image();
+  await new Promise((res, rej) => {
+    im.onload = res; im.onerror = () => rej(new Error('캡처 이미지 디코드 실패'));
+    im.src = url;
+  });
+  return im;
+}
+
+async function shootOne(){
+  const mime = CAN_RECORD ? pickClipMime() : '';
+  if (!mime || !stream){
+    fireFlash();
+    return { img: await grabStill(), clip: null };
+  }
+  let rec;
+  try{
+    rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 1500000 });
+  }catch(e){
+    console.warn('MediaRecorder 생성 실패:', e);
+    fireFlash();
+    return { img: await grabStill(), clip: null };
+  }
+  const chunks = [];
+  rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+  rec.start();
+  $('rec').classList.add('on');
+
+  await wait(CFG.PHOTO_AT_MS);
+  fireFlash();
+  const img = await grabStill();
+  await wait(Math.max(0, CFG.CLIP_MS - CFG.PHOTO_AT_MS));
+
+  await new Promise(r => { rec.onstop = r; try{ rec.stop(); }catch(_){ r(); } });
+  $('rec').classList.remove('on');
+  return { img, clip: chunks.length ? new Blob(chunks, { type: mime }) : null };
+}
+
+function fireFlash(){
+  const el = $('flash');
+  el.classList.remove('fire'); void el.offsetWidth; el.classList.add('fire');
+}
+function showCount(n){
+  const el = $('countdown');
+  el.textContent = n;
+  el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
+}
+function buildShotDots(){
+  const strip = $('shots-strip');
+  strip.innerHTML = '';
+  for (let i = 0; i < CFG.SHOT_COUNT; i++){
+    const d = document.createElement('div');
+    d.className = 'shot-dot'; d.id = 'dot-' + i; d.textContent = pad2(i + 1);
+    strip.appendChild(d);
+  }
+}
+function fillDot(i, img){
+  const d = $('dot-' + i);
+  d.classList.remove('now'); d.classList.add('filled');
+  d.innerHTML = '';
+  const c = img.cloneNode(); c.alt = (i+1) + '번째 사진';
+  d.appendChild(c);
+}
+function markDot(i){
+  for (let k = 0; k < CFG.SHOT_COUNT; k++) $('dot-'+k).classList.toggle('now', k === i);
+}
+function setProgress(done){
+  $('prog-fill').style.width = (done / CFG.SHOT_COUNT * 100) + '%';
+  $('prog-num').textContent = pad2(Math.min(done + 1, CFG.SHOT_COUNT)) + ' / ' + pad2(CFG.SHOT_COUNT);
+}
+
+async function startShooting(frame){
+  curFrame = frame;
+  show('s-cam');
+  buildShotDots();
+  setProgress(0);
+  const ok = await startCamera();
+  if (ok) await runShootFlow();
+}
+
+async function runShootFlow(){
+  shots = []; picked = []; videoBlob = null;
+  uploadToken++;
+  setStatus('곧 촬영을 시작합니다');
+  await wait(1000);
+
+  let retries = 0;
+  for (let i = 0; i < CFG.SHOT_COUNT; i++){
+    setProgress(i);
+    markDot(i);
+    setStatus(i === 0 ? '자세를 잡아주세요' : ['좋습니다','한 번 더','다음 컷','표정을 바꿔보세요'][i % 4]);
+    await wait(i === 0 ? 500 : 320);
+
+    const from = i === 0 ? CFG.COUNT_FIRST : CFG.COUNT_REST;
+    for (let n = from; n >= 1; n--){ showCount(n); await wait(CFG.COUNT_TICK_MS); }
+
+    setStatus('촬영 중');
+    let shot = null;
+    try{ shot = await shootOne(); }
+    catch(e){ console.warn('촬영 실패:', e); }
+
+    if (!shot || !shot.img){
+      if (++retries > 5){
+        $('err-msg').innerHTML = '카메라에서 화면을 받지 못했습니다.<br>다른 앱이 카메라를 사용 중인지 확인 후 다시 시도해주세요.';
+        stopCamera(); show('s-error'); return;
+      }
+      setStatus('카메라 신호를 기다리는 중');
+      await wait(700); i--; continue;
+    }
+    shots.push(shot);
+    fillDot(i, shot.img);
+    setStatus('촬영 완료');
+    await wait(220);
+  }
+
+  setProgress(CFG.SHOT_COUNT);
+  $('prog-num').textContent = 'DONE';
+  markDot(-1);
+  setStatus('마음에 드는 4장을 선택하세요');
+  await wait(500);
+  stopCamera();
+
+  picked = [0,1,2,3].slice(0, Math.min(CFG.PICK_COUNT, shots.length));
+  buildPickScreen();
+  show('s-pick');
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   화면 4 — 8장 중 4장 고르기
+   ═══════════════════════════════════════════════════════════════════ */
+function buildPickScreen(){
+  const g = $('pick-grid');
+  g.innerHTML = '';
+  shots.forEach((s, i) => {
+    const cell = document.createElement('button');
+    cell.className = 'pick-cell';
+    cell.type = 'button';
+    cell.dataset.i = i;
+    const im = s.img.cloneNode();
+    im.alt = (i+1) + '번째 사진';
+    cell.appendChild(im);
+    cell.insertAdjacentHTML('beforeend',
+      '<span class="no" aria-hidden="true">'+pad2(i+1)+'</span><span class="order"></span>');
+    cell.addEventListener('click', () => togglePick(i));
+    g.appendChild(cell);
+  });
+  refreshPick();
+}
+
+function togglePick(i){
+  const at = picked.indexOf(i);
+  if (at >= 0) picked.splice(at, 1);
+  else if (picked.length < CFG.PICK_COUNT) picked.push(i);
+  else {
+    // 이미 4장이면 가장 먼저 고른 걸 밀어내고 교체 (탭이 항상 반응하도록)
+    picked.shift(); picked.push(i);
+  }
+  refreshPick();
+}
+
+let previewJob = 0;
+function refreshPick(){
+  document.querySelectorAll('.pick-cell').forEach(c => {
+    const at = picked.indexOf(+c.dataset.i);
+    c.classList.toggle('on', at >= 0);
+    c.setAttribute('aria-pressed', at >= 0);
+    if (at >= 0) c.querySelector('.order').textContent = pad2(at + 1);
+  });
+  $('pick-count').innerHTML = '<b>' + picked.length + '</b> / ' + CFG.PICK_COUNT + ' Selected';
+  $('btn-confirm').disabled = picked.length !== CFG.PICK_COUNT;
+
+  const job = ++previewJob;
+  renderPhoto($('preview-canvas'), curFrame, picked.map(i => shots[i].img))
+    .then(() => { if (job !== previewJob) return; })
+    .catch(e => console.warn('미리보기 실패', e));
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   화면 5 — 결과
+   ═══════════════════════════════════════════════════════════════════ */
+async function goResult(){
+  const btn = $('btn-confirm');
+  btn.disabled = true; btn.innerHTML = '<span class="spin"></span> 만드는 중';
+
+  await renderPhoto($('result-canvas'), curFrame, picked.map(i => shots[i].img));
+
+  show('s-result');
+  btn.disabled = false; btn.textContent = '완성하기';
+
+  resetSaveButtons();
+  const vp = composeVideoBg();                 // 영상 합성 (백그라운드)
+  makeQr(vp).catch(e => console.error('QR 실패:', e));
+}
+
+function resetSaveButtons(){
+  const b = $('btn-save-video');
+  b.disabled = true;
+  b.textContent = CAN_RECORD ? '동영상 준비 중' : '이 기기는 영상 미지원';
+  $('vid-note').textContent = '';
+  $('qr-cap').textContent = 'Uploading';
+}
+
+/* ── 영상 합성: 선택된 4개 클립을 프레임 안에서 동시 재생하며 녹화 ── */
+async function composeVideo(){
+  if (!CAN_RECORD) throw new Error('이 브라우저는 영상 녹화를 지원하지 않습니다');
+  const clips = picked.map(i => shots[i].clip);
+  if (clips.some(c => !c)) throw new Error('영상 클립이 부족합니다');
+
+  const outMime = pickOutMime();
+  if (!outMime) throw new Error('지원하는 영상 코덱이 없습니다');
+
+  const vids = clips.map(b => {
+    const v = document.createElement('video');
+    v.src = URL.createObjectURL(b);
+    v.muted = true; v.loop = true; v.playsInline = true;
+    v.setAttribute('playsinline',''); v.setAttribute('muted','');
+    v.preload = 'auto';
+    return v;
+  });
+
+  let timer = null;      // 그리기 루프 핸들 (예외가 나도 반드시 멈추도록 밖에 선언)
+  const cleanup = () => {
+    if (timer){ clearInterval(timer); timer = null; }
+    vids.forEach(v => { try{ v.pause(); URL.revokeObjectURL(v.src); }catch(_){} });
+  };
+
+  try{
+    // 로드 (한 개라도 실패하면 그 칸은 스틸로 대체되므로 실패를 삼킴)
+    await Promise.all(vids.map(v => new Promise(res => {
+      v.addEventListener('loadeddata', res, { once:true });
+      v.addEventListener('error',      res, { once:true });
+      setTimeout(res, 2500);
+      v.load();
+    })));
+    await Promise.all(vids.map(v => v.play().catch(()=>{})));
+
+    const cv  = document.createElement('canvas');
+    cv.width  = curFrame.w; cv.height = curFrame.h;
+    const ctx = cv.getContext('2d');
+    await document.fonts.ready.catch(()=>{});
+
+    const rec = new MediaRecorder(cv.captureStream(CFG.FPS), { mimeType: outMime, videoBitsPerSecond: 3500000 });
+    const chunks = [];
+    rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+
+    // PNG 프레임이면 오버레이 이미지를 미리 확보
+    const overlayImg = curFrame.builtin ? null : await loadImg(curFrame.src);
+
+    rec.start();
+    const t0 = performance.now();
+    let stopped = false;
+
+    function draw(){
+      if (stopped) return;
+      const el = performance.now() - t0;
+
+      if (curFrame.builtin) curFrame.paintBackground(ctx);
+      else { ctx.fillStyle = curFrame.bg || '#0C0C0C'; ctx.fillRect(0,0,curFrame.w,curFrame.h); }
+
+      for (let i = 0; i < curFrame.slots.length; i++){
+        const v = vids[i], s = curFrame.slots[i];
+        const live = v && v.readyState >= 2 && drawCover(ctx, v, s, curFrame.slotRadius, true);
+        if (!live){
+          const still = shots[picked[i]] && shots[picked[i]].img;
+          if (still) drawCover(ctx, still, s, curFrame.slotRadius, false);
+        }
+      }
+
+      if (curFrame.builtin) curFrame.paintOverlay(ctx);
+      else ctx.drawImage(overlayImg, 0, 0, curFrame.w, curFrame.h);
+
+      if (el >= CFG.VIDEO_MS){
+        stopped = true;
+        clearInterval(timer); timer = null;
+        setTimeout(() => { try{ rec.stop(); }catch(_){} }, 60);
+      }
+    }
+    /* requestAnimationFrame 이 아니라 setInterval 을 쓰는 이유:
+       태블릿에서 화면이 꺼지거나 다른 앱으로 전환되면 rAF 가 완전히 멈춰서
+       합성이 영영 안 끝납니다. setInterval 은 백그라운드에서 1fps 로 느려질 뿐
+       계속 돌기 때문에, 최악의 경우 영상이 끊길지언정 반드시 완료됩니다. */
+    timer = setInterval(draw, Math.round(1000 / CFG.FPS));
+    draw();
+
+    const blob = await new Promise((res, rej) => {
+      rec.onstop  = () => res(new Blob(chunks, { type: outMime }));
+      rec.onerror = rej;
+      setTimeout(() => rej(new Error('영상 만들기가 너무 오래 걸립니다')), CFG.VIDEO_MS + 25000);
+    });
+    cleanup();
+    cv.width = cv.height = 0;
+    if (!blob.size) throw new Error('빈 영상이 만들어졌습니다');
+    return { blob, ext: outMime.startsWith('video/mp4') ? 'mp4' : 'webm' };
+  }catch(e){
+    cleanup();
+    throw e;
+  }
+}
+
+async function composeVideoBg(){
+  const btn  = $('btn-save-video');
+  const note = $('vid-note');
+  if (!CAN_RECORD){
+    note.textContent = '이 기기에서는 사진만 저장할 수 있습니다';
+    return null;
+  }
+  note.textContent = '5초 영상을 만드는 중 (5~20초 소요)';
+  try{
+    const r = await composeVideo();
+    videoBlob = r.blob; videoExt = r.ext;
+    btn.disabled = false;
+    btn.textContent = '동영상 저장';
+    note.textContent = '동영상 준비 완료 · ' + (r.blob.size/1048576).toFixed(1) + ' MB';
+    return r;
+  }catch(e){
+    console.warn('영상 합성 실패:', e);
+    btn.disabled = true;
+    btn.textContent = '동영상 없음';
+    note.textContent = e.message || '영상을 만들지 못했습니다 (사진은 정상)';
+    return null;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   업로드 → QR
+   ═══════════════════════════════════════════════════════════════════ */
+function stamp(){
+  const n = new Date();
+  return '' + n.getFullYear() + pad2(n.getMonth()+1) + pad2(n.getDate()) + '_' +
+         pad2(n.getHours()) + pad2(n.getMinutes()) + pad2(n.getSeconds());
+}
+
+/* ── (준비만 해둠) Supabase Storage 업로드 ─────────────────────────
+   CFG.SUPABASE.ENABLED = true 로 켜면 1순위로 사용됩니다.       */
+async function uploadSupabase(blob, filename){
+  const S = CFG.SUPABASE;
+  if (!S.ENABLED || !S.URL || !S.ANON_KEY) throw new Error('supabase 비활성');
+  const path = new Date().toISOString().slice(0,10) + '/' + filename;
+  const url  = S.URL.replace(/\/$/,'') + '/storage/v1/object/' + S.BUCKET + '/' + encodeURI(path);
+  const r = await fetch(url, {
+    method:'POST',
+    headers:{ 'Authorization':'Bearer '+S.ANON_KEY, 'apikey':S.ANON_KEY,
+              'Content-Type': blob.type || 'application/octet-stream',
+              'x-upsert':'true', 'cache-control':'86400' },
+    body: blob,
+  });
+  if (!r.ok) throw new Error('supabase HTTP ' + r.status + ' ' + (await r.text()).slice(0,120));
+  /* ⚠️ hours 는 "삭제 Edge Function 을 이 주기로 돌린다"는 전제입니다.
+        삭제 함수를 안 만들면 파일이 영구히 남으므로 문구가 거짓이 됩니다.
+        README 5-④ 를 반드시 함께 설정하세요. */
+  return {
+    url: S.URL.replace(/\/$/,'') + '/storage/v1/object/public/' + S.BUCKET + '/' + encodeURI(path),
+    hours: CFG.RETENTION_HOURS,
+  };
+}
+
+/* ── 업로드 체인 ────────────────────────────────────────────────────
+   ★ 모든 업로더는 { url, hours } 를 반환합니다.
+     hours = 그 서비스가 실제로 파일을 보관하는 시간.
+     참가자에게 "몇 시간 뒤 삭제"라고 안내하는 문구가 이 값에서
+     직접 나오므로, 절대 실제보다 짧게 적으면 안 됩니다.
+
+   ⚠️ catbox.moe 는 "영구 보관"이라 여기서 뺐습니다.
+      참가자 얼굴 사진이 무기한 공개 URL로 남기 때문입니다.
+      (임시 버전인 litterbox 는 아래에서 사용합니다)              */
+
+/* 0x0.st — expires 에 시간(hour)을 넘기면 그만큼만 보관 */
+async function upload0x0(blob, name, hours){
+  const fd = new FormData();
+  fd.append('file', blob, name);
+  fd.append('expires', String(hours));
+  const r = await fetch('https://0x0.st', { method:'POST', body: fd });
+  if (!r.ok) throw new Error('0x0 HTTP ' + r.status);
+  const u = (await r.text()).trim();
+  if (!/^https?:\/\//.test(u)) throw new Error('0x0 응답 오류');
+  return { url: u, hours };
+}
+
+/* litterbox — catbox 의 임시 버전. 1h / 12h / 24h / 72h 프리셋만 지원 */
+async function uploadLitterbox(blob, name, preset){
+  const fd = new FormData();
+  fd.append('reqtype','fileupload');
+  fd.append('time', preset);
+  fd.append('fileToUpload', blob, name);
+  const r = await fetch('https://litterbox.catbox.moe/resources/internals/api.php', { method:'POST', body: fd });
+  if (!r.ok) throw new Error('litterbox HTTP ' + r.status);
+  const u = (await r.text()).trim();
+  if (!/^https?:\/\//.test(u)) throw new Error('litterbox 응답 오류');
+  return { url: u, hours: parseInt(preset, 10) };
+}
+
+/* tmpfiles.org — 1시간 고정 */
+async function uploadTmpfiles(blob, name){
+  const fd = new FormData(); fd.append('file', blob, name);
+  const r = await fetch('https://tmpfiles.org/api/v1/upload', { method:'POST', body: fd });
+  if (!r.ok) throw new Error('tmpfiles HTTP ' + r.status);
+  const j = await r.json();
+  const u = j && j.data && j.data.url;
+  if (!u) throw new Error('tmpfiles 응답 오류');
+  return { url: u.replace('://tmpfiles.org/', '://tmpfiles.org/dl/'), hours: 1 };
+}
+
+async function uploadAny(blob, name){
+  const H = CFG.RETENTION_HOURS;
+  const chain = [
+    ['supabase',   () => uploadSupabase(blob, name)],
+    ['0x0.st',     () => upload0x0(blob, name, H)],
+    ['litterbox',  () => uploadLitterbox(blob, name, CFG.RETENTION_FALLBACK)],
+    ['tmpfiles',   () => uploadTmpfiles(blob, name)],
+  ];
+  const errs = [];
+  for (const [n, fn] of chain){
+    try{ return await fn(); }
+    catch(e){ errs.push(n + ': ' + e.message); }
+  }
+  throw new Error('업로드 전부 실패 — ' + errs.join(' / '));
+}
+
+function canvasBlob(cv, type, q){ return new Promise(res => cv.toBlob(res, type, q)); }
+function viewBase(){ return location.href.split('?')[0].split('#')[0]; }
+
+async function drawQr(payload){
+  const cv = $('qr-canvas');
+  let ok = false;
+  try{
+    ok = await Promise.race([ window.__qrReady, new Promise(r => setTimeout(()=>r(false), 8000)) ]);
+  }catch(_){ ok = false; }
+  if (!ok || typeof QRious === 'undefined'){
+    const ctx = cv.getContext('2d');
+    cv.width = cv.height = 220;
+    ctx.fillStyle = '#fff'; ctx.fillRect(0,0,220,220);
+    ctx.fillStyle = '#111'; ctx.font = "500 13px Archivo, sans-serif"; ctx.textAlign = 'center';
+    ctx.fillText('QR 생성 실패', 110, 104);
+    ctx.fillText('인터넷 연결 확인', 110, 126);
+    return;
+  }
+  new QRious({ element: cv, value: payload, size: 460, level: 'M', background:'#ffffff', foreground:'#000000' });
+}
+
+async function makeQr(videoPromise){
+  const token = ++uploadToken;
+  const ts = stamp();
+  $('qr-cap').textContent = 'Uploading';
+  await drawQr(viewBase() + '?t=' + ts);        // 실패해도 뭔가는 보이도록 임시 QR
+
+  try{
+    const photoBlob = await canvasBlob($('result-canvas'), 'image/jpeg', 0.9);
+    if (!photoBlob) throw new Error('사진 변환 실패');
+
+    const [photoRes, vres] = await Promise.all([
+      uploadAny(photoBlob, '충주CCC_사진_' + ts + '.jpg'),
+      (videoPromise || Promise.resolve(null)).catch(() => null),
+    ]);
+    if (token !== uploadToken) return;
+
+    let videoRes = null;
+    if (vres && vres.blob){
+      $('qr-cap').textContent = 'Uploading video';
+      try{ videoRes = await uploadAny(vres.blob, '충주CCC_영상_' + ts + '.' + vres.ext); }
+      catch(e){ console.warn('영상 업로드 실패:', e); }
+      if (token !== uploadToken) return;
+    }
+
+    /* 사진과 영상이 서로 다른 서비스로 갔을 수 있으므로, 안내 문구는
+       "둘 다 사라지는 시점" = 더 긴 쪽을 기준으로 해야 정직합니다. */
+    const hours = Math.max(photoRes.hours || 0, videoRes ? (videoRes.hours || 0) : 0);
+
+    const q = new URLSearchParams({ view:'1', p: photoRes.url, ts, exp: String(hours) });
+    if (videoRes) q.set('v', videoRes.url);
+    await drawQr(viewBase() + '?' + q.toString());
+
+    $('qr-cap').innerHTML = videoRes
+      ? 'Scan to save<br>photo + video'
+      : (vres && vres.blob ? 'Scan to save photo<br>video upload failed' : 'Scan to save photo');
+  }catch(e){
+    if (token !== uploadToken) return;
+    console.error('업로드 실패:', e);
+    $('qr-cap').innerHTML = 'Upload failed<br>use save buttons';
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   저장 버튼
+   ═══════════════════════════════════════════════════════════════════ */
+async function savePhoto(){
+  const b = $('btn-save-photo'), orig = b.textContent;
+  b.disabled = true; b.innerHTML = '<span class="spin"></span> 준비 중';
+  try{
+    const blob = await canvasBlob($('result-canvas'), 'image/jpeg', 0.95);
+    await shareOrDownload(blob, '충주CCC_포토부스_' + stamp() + '.jpg', 'image/jpeg');
+  }catch(e){ console.error(e); alert('사진 저장에 실패했습니다.'); }
+  finally{ b.disabled = false; b.textContent = orig; }
+}
+async function saveVideo(){
+  if (!videoBlob) return;
+  const b = $('btn-save-video'), orig = b.textContent;
+  b.disabled = true; b.innerHTML = '<span class="spin"></span> 준비 중';
+  try{ await shareOrDownload(videoBlob, '충주CCC_포토부스_' + stamp() + '.' + videoExt, 'video/' + videoExt); }
+  catch(e){ console.error(e); alert('영상 저장에 실패했습니다.'); }
+  finally{ b.disabled = false; b.textContent = orig; }
+}
+async function saveQr(){
+  const blob = await canvasBlob($('qr-canvas'), 'image/png');
+  if (blob) await shareOrDownload(blob, '충주CCC_QR_' + stamp() + '.png', 'image/png');
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   이벤트 연결
+   ═══════════════════════════════════════════════════════════════════ */
+async function restartShoot(){
+  show('s-cam'); buildShotDots(); setProgress(0);
+  const ok = await startCamera();
+  if (ok) await runShootFlow();
+}
+
+$('btn-back-layout').addEventListener('click', () => show('s-layout'));
+$('btn-confirm')    .addEventListener('click', goResult);
+$('btn-reshoot')    .addEventListener('click', restartShoot);
+$('btn-save-photo') .addEventListener('click', savePhoto);
+$('btn-save-video') .addEventListener('click', saveVideo);
+$('btn-save-qr')    .addEventListener('click', saveQr);
+$('btn-restart')    .addEventListener('click', () => {
+  uploadToken++;
+  shots = []; picked = []; videoBlob = null; curFrame = null; curLayout = null;
+  stopCamera();
+  show('s-layout');
+});
+$('btn-retry').addEventListener('click', () => {
+  if (!curFrame){ show('s-layout'); return; }
+  restartShoot();
+});
+
+/* 키오스크: 실수로 나가는 것 방지 */
+document.addEventListener('gesturestart', e => e.preventDefault());
+document.addEventListener('contextmenu',  e => e.preventDefault());
+
+buildLayoutScreen();
+show('s-layout');
+
+})();
+</script>
+</body>
+</html>

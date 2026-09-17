@@ -1,0 +1,25 @@
+# Replace with the project ref after creating the Supabase project
+# (Project Settings > General > Reference ID).
+project_id = "photobooth"
+
+# The new publishable/secret keys are not JWTs, so the platform's JWT check
+# can't be used. Every function authorizes the request itself
+# (x-booth-key, x-cleanup-token, or public for get-session).
+
+[functions.create-upload]
+verify_jwt = false
+
+[functions.complete-upload]
+verify_jwt = false
+
+[functions.get-session]
+verify_jwt = false
+
+[functions.list-frames]
+verify_jwt = false
+
+[functions.manage-frames]
+verify_jwt = false
+
+[functions.cleanup]
+verify_jwt = false

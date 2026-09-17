@@ -1,0 +1,25 @@
+node_modules/
+.DS_Store
+Thumbs.db
+
+# secrets
+.env
+.env.*
+supabase/functions/.env
+*.jks
+*.keystore
+
+# Supabase CLI local state
+supabase/.temp/
+supabase/.branches/
+
+# Android build output
+app/android/.gradle/
+app/android/build/
+app/android/app/build/
+app/android/local.properties
+app/android/capacitor-cordova-android-plugins/build/
+dist/
+
+# Vercel
+.vercel

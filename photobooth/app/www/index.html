@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#FFFFFF">
+  <title>포토부스</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app">
+
+    <!-- 1. 프레임 선택 (대기 화면) -->
+    <section class="screen" data-screen="frames">
+      <header class="head">
+        <h1>프레임을 골라주세요</h1>
+        <p class="lede">마음에 드는 디자인을 누르면 바로 촬영을 시작해요</p>
+      </header>
+      <div class="frame-groups">
+        <section class="frame-group">
+          <h2>세로 4컷</h2>
+          <div class="frame-row" data-layout="vertical"></div>
+        </section>
+        <section class="frame-group">
+          <h2>바둑판</h2>
+          <div class="frame-row" data-layout="grid"></div>
+        </section>
+      </div>
+      <p class="queue-note" id="queue-note" hidden></p>
+      <button class="admin-hotspot" id="admin-hotspot" type="button" aria-label="관리자 메뉴 (3초 동안 누르기)"></button>
+    </section>
+
+    <!-- 2. 촬영 -->
+    <section class="screen" data-screen="shoot" hidden>
+      <header class="head">
+        <p class="counter" id="shot-counter"></p>
+        <h1 id="shoot-title">카메라를 봐주세요</h1>
+      </header>
+      <div class="camera">
+        <video id="camera-video" playsinline muted autoplay></video>
+        <div class="countdown" id="countdown" aria-live="assertive"></div>
+        <div class="flash" id="flash"></div>
+      </div>
+      <ol class="shot-strip" id="shot-strip"></ol>
+    </section>
+
+    <!-- 3. 4장 고르기 -->
+    <section class="screen" data-screen="pick" hidden>
+      <header class="head">
+        <h1>4장을 골라주세요</h1>
+        <p class="lede" id="pick-hint">누른 순서대로 프레임 칸에 들어가요</p>
+      </header>
+      <div class="pick-grid" id="pick-grid"></div>
+      <div class="pick-foot">
+        <canvas class="pick-preview" id="pick-preview"></canvas>
+        <div class="stack">
+          <button class="button primary" id="pick-confirm" type="button" disabled>이 4장으로 완성</button>
+          <button class="button secondary" id="pick-reshoot" type="button">다시 찍기</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. 완성 -->
+    <section class="screen" data-screen="result" hidden>
+      <header class="head">
+        <h1>완성됐어요</h1>
+      </header>
+      <div class="result-print">
+        <canvas id="result-canvas"></canvas>
+      </div>
+      <div class="share">
+        <canvas class="qr" id="qr-canvas" aria-label="사진 받기 QR 코드"></canvas>
+        <div class="share-text">
+          <p class="share-main">휴대폰 카메라로 QR을 찍으면 사진과 영상을 받을 수 있어요</p>
+          <p class="share-status" id="upload-status"></p>
+        </div>
+      </div>
+      <footer class="result-foot">
+        <button class="button secondary" id="result-home" type="button">처음으로</button>
+        <p class="idle-note" id="idle-note"></p>
+      </footer>
+    </section>
+
+    <!-- 카메라 오류 -->
+    <section class="screen" data-screen="camera-error" hidden>
+      <header class="head">
+        <h1>카메라를 켤 수 없어요</h1>
+        <p class="lede" id="camera-error-text"></p>
+      </header>
+      <div class="stack narrow">
+        <button class="button primary" id="camera-retry" type="button">다시 시도</button>
+        <button class="button secondary" data-go-home type="button">처음으로</button>
+      </div>
+    </section>
+
+    <!-- 관리자: 프레임 관리 -->
+    <section class="screen" data-screen="admin" hidden>
+      <header class="head row">
+        <div>
+          <h1>프레임 관리</h1>
+          <p class="lede">등록한 프레임은 모든 태블릿에 함께 나타나요</p>
+        </div>
+        <button class="button secondary" id="admin-close" type="button">닫기</button>
+      </header>
+      <button class="button primary" id="admin-add" type="button">PNG 프레임 등록하기</button>
+      <p class="admin-spec">세로 4컷은 591×1772, 바둑판은 1080×1200 비율의 PNG. 사진이 들어갈 칸은 투명해야 해요.</p>
+      <p class="admin-message" id="admin-message" hidden></p>
+      <ul class="admin-list" id="admin-list"></ul>
+    </section>
+  </div>
+
+  <!-- PIN -->
+  <dialog class="sheet" id="pin-dialog">
+    <h2>관리자 PIN</h2>
+    <div class="pin-dots" id="pin-dots" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+    <p class="sheet-message" id="pin-message" role="alert"></p>
+    <div class="keypad" id="keypad">
+      <button type="button">1</button><button type="button">2</button><button type="button">3</button>
+      <button type="button">4</button><button type="button">5</button><button type="button">6</button>
+      <button type="button">7</button><button type="button">8</button><button type="button">9</button>
+      <button type="button" data-key="cancel">취소</button><button type="button">0</button><button type="button" data-key="back">지우기</button>
+    </div>
+  </dialog>
+
+  <!-- 프레임 등록 확인 -->
+  <dialog class="sheet wide" id="register-dialog">
+    <h2 id="register-title">프레임 등록</h2>
+    <p class="sheet-message" id="register-message" role="alert"></p>
+    <div class="register-body" id="register-body">
+      <canvas class="register-preview" id="register-preview"></canvas>
+      <div class="register-form">
+        <label class="field">
+          <span>이름</span>
+          <input id="register-name" maxlength="30" autocomplete="off">
+        </label>
+        <p class="lede" id="register-layout"></p>
+        <div class="stack">
+          <button class="button primary" id="register-submit" type="button">등록하기</button>
+          <button class="button secondary" id="register-cancel" type="button">취소</button>
+        </div>
+      </div>
+    </div>
+    <div class="stack narrow" id="register-close-only" hidden>
+      <button class="button secondary" id="register-dismiss" type="button">닫기</button>
+    </div>
+  </dialog>
+
+  <input type="file" id="frame-file" accept="image/png" hidden>
+  <p class="toast" id="toast" role="status" hidden></p>
+
+  <script src="config.js"></script>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

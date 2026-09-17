@@ -1,0 +1,12 @@
+# Keep shell scripts with LF endings even when committed from Windows.
+# A CRLF gradlew fails on the Linux build machine with "/bin/sh^M: bad interpreter".
+* text=auto
+gradlew text eol=lf
+*.sh text eol=lf
+*.bat text eol=crlf
+
+*.png binary
+*.jpg binary
+*.jks binary
+*.jar binary
+*.woff2 binary
