@@ -48,7 +48,29 @@ test("findBlockedSlots flags slots that are not transparent", () => {
   assert.deepEqual(findBlockedSlots("vertical", alphaMap("vertical", [])), []);
   assert.deepEqual(findBlockedSlots("grid", alphaMap("grid", [3])), [3]);
   assert.deepEqual(findBlockedSlots("vertical", alphaMap("vertical", [1, 4])), [1, 4]);
-  assert.equal(blockedSlotsMessage([1, 4]), "1, 4번째 사진 칸이 투명하지 않아요. 사진이 들어갈 자리는 비워서 투명하게 저장해주세요.");
+  assert.equal(blockedSlotsMessage([1, 4]), "1, 4번째 사진 칸이 대부분 가려져 있어요. 사진이 들어갈 자리는 비워서 투명하게 저장해주세요.");
+});
+
+// A frame with a character sticker covering part of a slot, like the CCC frames.
+function stickerAlpha(layoutKey, slotNo, coverShare) {
+  const s = LAYOUTS[layoutKey].slots[slotNo - 1];
+  const side = Math.sqrt(coverShare * s.w * s.h); // square sticker in the bottom-left corner
+  return (x, y) => {
+    const base = alphaMap(layoutKey, [])(x, y);
+    const inSticker = x >= s.x && x < s.x + side && y >= s.y + s.h - side && y < s.y + s.h;
+    return inSticker ? 255 : base;
+  };
+}
+
+test("corner stickers that overlap a photo are allowed", () => {
+  // The blue CCC frame's bottom character covers about 7% and sits on an inner point.
+  assert.deepEqual(findBlockedSlots("vertical", stickerAlpha("vertical", 4, 0.07)), []);
+  assert.deepEqual(findBlockedSlots("vertical", stickerAlpha("vertical", 4, 0.25)), []);
+});
+
+test("covering more than 30% of a slot is rejected", () => {
+  assert.deepEqual(findBlockedSlots("vertical", stickerAlpha("vertical", 4, 0.36)), [4]);
+  assert.deepEqual(findBlockedSlots("grid", stickerAlpha("grid", 2, 0.5)), [2]);
 });
 
 test("a slot with only its center punched out still counts as blocked", () => {

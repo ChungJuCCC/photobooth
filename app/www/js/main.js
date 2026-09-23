@@ -403,8 +403,16 @@ async function boot() {
   // Native only: keep the screen on while the booth is running.
   window.Capacitor?.Plugins?.KeepAwake?.keepAwake?.().catch?.(() => {});
 
-  // Test hook for the mock environment only.
-  if (config.dev) window.__booth = { state, queue, library };
+  // Mock environment only: test hook, and clicking the QR opens the guest
+  // page in a phone-sized window (a real phone can't reach localhost).
+  if (config.dev) {
+    window.__booth = { state, queue, library };
+    $("qr-canvas").style.cursor = "pointer";
+    $("qr-canvas").title = "테스트 모드: 클릭하면 손님 휴대폰 화면이 열려요";
+    $("qr-canvas").addEventListener("click", () => {
+      if (state.sessionId) window.open(guestUrl(state.sessionId), "guest", "width=400,height=820");
+    });
+  }
 }
 
 boot();

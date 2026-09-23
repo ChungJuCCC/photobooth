@@ -33,6 +33,11 @@ export const LAYOUTS = {
 export const RATIO_TOLERANCE = 0.01;
 export const MAX_FRAME_BYTES = 10 * 1024 * 1024;
 const OPAQUE_ALPHA = 32;
+// A slot counts as blocked when more than this share of it is opaque.
+// Corner stickers overlapping a photo cover roughly 1–10%; a slot left
+// filled in (white, or a flattened export) covers close to 100%.
+export const MAX_SLOT_COVERAGE = 0.3;
+const SAMPLE_STEP = 4;
 
 // Which layout a PNG of this size belongs to, or null. Any scale is fine as
 // long as the proportions match (e.g. 1182×3544 is a 2× vertical frame).
@@ -46,25 +51,28 @@ export function detectLayout(width, height) {
   return null;
 }
 
-// Points inside each photo slot that must be see-through. Checks the center
-// and four inner points so a frame with a small hole in the middle still fails.
-export function slotSamplePoints(layoutKey) {
-  return LAYOUTS[layoutKey].slots.map((s) =>
-    [[0.5, 0.5], [0.25, 0.25], [0.75, 0.25], [0.25, 0.75], [0.75, 0.75]].map(([fx, fy]) => ({
-      x: Math.round(s.x + s.w * fx),
-      y: Math.round(s.y + s.h * fy),
-    }))
-  );
+// Share (0..1) of each photo slot that the frame covers, measured on a grid.
+// alphaAt(x, y) → 0..255 on the frame already resized to the layout size.
+export function slotCoverage(layoutKey, alphaAt) {
+  return LAYOUTS[layoutKey].slots.map((s) => {
+    let covered = 0;
+    let total = 0;
+    for (let y = s.y; y < s.y + s.h; y += SAMPLE_STEP) {
+      for (let x = s.x; x < s.x + s.w; x += SAMPLE_STEP) {
+        total++;
+        if (alphaAt(x, y) > OPAQUE_ALPHA) covered++;
+      }
+    }
+    return covered / total;
+  });
 }
 
-// alphaAt(x, y) → 0..255 on the frame already resized to the layout size.
-// Returns the 1-based slot numbers that are not transparent.
+// 1-based numbers of the slots where too much of the photo would be hidden.
+// Decorations that overlap a slot's edge are fine; a filled-in slot is not.
 export function findBlockedSlots(layoutKey, alphaAt) {
-  const blocked = [];
-  slotSamplePoints(layoutKey).forEach((points, index) => {
-    if (points.some((p) => alphaAt(p.x, p.y) > OPAQUE_ALPHA)) blocked.push(index + 1);
-  });
-  return blocked;
+  return slotCoverage(layoutKey, alphaAt)
+    .map((share, index) => (share > MAX_SLOT_COVERAGE ? index + 1 : null))
+    .filter((n) => n !== null);
 }
 
 // Human-readable reason a PNG can't be registered, or null if it can.
@@ -80,7 +88,7 @@ export function frameProblem({ type, name, bytes, width, height }) {
 
 export function blockedSlotsMessage(slots) {
   const list = slots.join(", ");
-  return `${list}번째 사진 칸이 투명하지 않아요. 사진이 들어갈 자리는 비워서 투명하게 저장해주세요.`;
+  return `${list}번째 사진 칸이 대부분 가려져 있어요. 사진이 들어갈 자리는 비워서 투명하게 저장해주세요.`;
 }
 
 export function defaultFrameName(fileName) {
