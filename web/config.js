@@ -4,5 +4,5 @@
 window.GUEST_CONFIG = {
   functionsUrl: "https://ummgtbsrryuslqssorcv.supabase.co/functions/v1",
   publishableKey: "sb_publishable_4Ls_x_4rik-weoMvEp2XBw_oL4j6olI",
-  eventName: "",
+  eventName: "충주지구",
 };
