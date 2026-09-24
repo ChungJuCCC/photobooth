@@ -25,9 +25,11 @@ android {
             def keystore = System.getenv("ANDROID_KEYSTORE_PATH")
             if (keystore) {
                 storeFile file(keystore)
-                storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD")
-                keyAlias System.getenv("ANDROID_KEY_ALIAS")
-                keyPassword System.getenv("ANDROID_KEY_PASSWORD")
+                // Trimmed: a stray newline pasted into a secret is otherwise
+                // indistinguishable from a wrong password.
+                storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD")?.trim()
+                keyAlias System.getenv("ANDROID_KEY_ALIAS")?.trim()
+                keyPassword System.getenv("ANDROID_KEY_PASSWORD")?.trim()
             }
         }
     }
