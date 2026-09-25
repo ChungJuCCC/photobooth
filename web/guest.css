@@ -1,5 +1,6 @@
 :root {
   /* Neutral greys, no blue cast: photos keep their own colour. */
+  --wash: #f0f0ee;
   --paper: #ffffff;
   --surface: #f1f1f0;
   --line: #e0e0dd;
@@ -24,7 +25,7 @@ html { -webkit-text-size-adjust: 100%; }
 
 body {
   min-height: 100dvh;
-  background: var(--paper);
+  background: var(--wash);
   color: var(--ink);
   font-family: var(--font);
   font-size: var(--step-0);
@@ -77,26 +78,36 @@ h1 {
   text-wrap: pretty;
 }
 
-/* Photos sit on the page like prints: square corners, one soft shadow. */
-.print { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+/* The photo is handed over on paper: a white mat, one soft shadow. */
+.print {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  background: var(--paper);
+  border-radius: 24px;
+  padding: 14px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 18px 44px -28px rgba(0, 0, 0, 0.45);
+}
 .print + .print { margin-top: 36px; }
 
 .print img,
 .print video {
   display: block;
   max-width: 100%;
-  max-height: 78vh;
+  max-height: 72vh;
   width: auto;
   height: auto;
   background: var(--surface);
 }
 
 .print img,
-.print video { box-shadow: 0 1px 2px rgba(0, 0, 0, 0.07), 0 18px 40px -18px rgba(0, 0, 0, 0.28); }
+.print video { border-radius: 12px; }
 
 .print figcaption {
   font-size: var(--step--1);
   color: var(--muted);
+  padding-bottom: 2px;
 }
 
 .hint {
@@ -125,6 +136,7 @@ h1 {
   position: fixed;
   inset: auto 0 0 0;
   background: var(--paper);
+  border-radius: 24px 24px 0 0;
   padding: 16px var(--gutter) max(18px, env(safe-area-inset-bottom));
   box-shadow: 0 -1px 0 var(--line), 0 -14px 32px -20px rgba(0, 0, 0, 0.35);
 }

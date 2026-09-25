@@ -7,12 +7,17 @@
 
 :root {
   /* Neutral greys, no blue cast: photos keep their own colour. */
+  --wash: #f0f0ee;
   --paper: #ffffff;
   --surface: #f1f1f0;
   --line: #e0e0dd;
   --line-strong: #c9c9c5;
   --muted: #5f5f5c;
   --ink: #000000;
+
+  --radius: clamp(18px, 2.2vw, 28px);
+  --radius-sm: 14px;
+  --lift: 0 1px 2px rgba(0, 0, 0, 0.04), 0 18px 40px -26px rgba(0, 0, 0, 0.4);
 
   --font: "Wanted Sans Variable", system-ui, sans-serif;
 
@@ -32,7 +37,7 @@
 html, body { height: 100%; overflow: hidden; }
 
 body {
-  background: var(--paper);
+  background: var(--wash);
   color: var(--ink);
   font-family: var(--font);
   font-size: var(--t-body);
@@ -67,6 +72,10 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 /* ── type ─────────────────────────────────────────────────────────── */
 
 .head { display: flex; flex-direction: column; gap: 6px; }
+.screen[data-screen="frames"] .head,
+.screen[data-screen="shoot"] .head,
+.screen[data-screen="pick"] .head,
+.screen[data-screen="result"] .head { align-items: center; text-align: center; }
 .head.row { flex-direction: row; justify-content: space-between; align-items: flex-start; gap: var(--gap); }
 
 h1 {
@@ -154,6 +163,8 @@ h2 {
   aspect-ratio: 499 / 396;
   background: var(--surface);
   overflow: hidden;
+  border-radius: var(--radius);
+  box-shadow: var(--lift);
 }
 .camera video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); display: block; }
 
@@ -190,7 +201,7 @@ h2 {
 }
 
 .shot-strip { list-style: none; display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; }
-.shot-strip li { aspect-ratio: 499 / 396; background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); overflow: hidden; transition: box-shadow 120ms ease-out; }
+.shot-strip li { aspect-ratio: 499 / 396; background: var(--surface); border-radius: var(--radius-sm); box-shadow: inset 0 0 0 1px var(--line); overflow: hidden; transition: box-shadow 120ms ease-out; }
 .shot-strip li.current { box-shadow: inset 0 0 0 3px var(--ink); }
 .shot-strip img { width: 100%; height: 100%; object-fit: cover; display: block; }
 
@@ -206,7 +217,7 @@ h2 {
   min-height: 0;
 }
 
-.pick-cell { position: relative; aspect-ratio: 499 / 396; background: var(--surface); }
+.pick-cell { position: relative; aspect-ratio: 499 / 396; background: var(--surface); border-radius: var(--radius-sm); overflow: hidden; box-shadow: var(--lift); }
 .pick-cell img { width: 100%; height: 100%; object-fit: cover; display: block; transition: opacity 120ms ease-out; }
 .pick-cell.selected { outline: 4px solid var(--ink); outline-offset: 4px; }
 .pick-grid.full .pick-cell:not(.selected) img { opacity: 0.35; }
@@ -253,15 +264,20 @@ h2 {
   100% { opacity: 1; filter: none; }
 }
 
-.share { display: flex; align-items: center; gap: var(--gap); padding-top: var(--gap); border-top: 1px solid var(--line); }
+.share {
+  display: flex;
+  align-items: center;
+  gap: var(--gap);
+  padding: var(--gap);
+  background: var(--paper);
+  border-radius: var(--radius);
+  box-shadow: var(--lift);
+}
 .qr {
   width: clamp(150px, 22vw, 220px);
   height: clamp(150px, 22vw, 220px);
   flex: none;
   image-rendering: pixelated;
-  padding: 12px;
-  background: var(--paper);
-  box-shadow: 0 0 0 1px var(--line);
 }
 .share-text { display: flex; flex-direction: column; gap: 8px; }
 .share-main { font-size: var(--t-h2); font-weight: 600; line-height: 1.35; letter-spacing: -0.015em; text-wrap: balance; }
@@ -275,7 +291,8 @@ h2 {
 .admin-spec { font-size: var(--t-small); color: var(--muted); margin-top: -8px; }
 .admin-message { font-size: var(--t-small); font-weight: 600; }
 
-.admin-list { list-style: none; overflow-y: auto; flex: 1; min-height: 0; border-top: 1px solid var(--line); }
+.admin-list { list-style: none; overflow-y: auto; flex: 1; min-height: 0; border-top: 1px solid var(--line); background: var(--paper); border-radius: var(--radius-sm); }
+.admin-list li:first-child { border-top: 0; }
 .admin-list li { display: flex; align-items: center; gap: var(--gap); padding: 16px 0; border-bottom: 1px solid var(--line); }
 .admin-list canvas { height: 96px; width: auto; box-shadow: 0 0 0 1px var(--line); flex: none; }
 .admin-list .meta { flex: 1; display: flex; flex-direction: column; }
@@ -349,4 +366,82 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.45); }
 @media (prefers-reduced-motion: reduce) {
   .screen.entering, .result-print canvas.develop, .countdown.tick { animation-duration: 1ms; }
   .countdown.tick { animation: none; opacity: 1; }
+}
+
+
+/* ── landscape tablet (the booth's normal orientation) ────────────────
+   The tablet lies on its side: give the camera and the print the long
+   edge, and put everything that reads as text or controls beside them. */
+
+@media (orientation: landscape) {
+  .screen { padding: clamp(20px, 3.4vh, 44px) clamp(28px, 4vw, 64px); gap: clamp(12px, 2vh, 24px); }
+
+  h1 { font-size: clamp(26px, 3.4vw, 42px); }
+
+  /* 1. frames: the two kinds sit side by side instead of stacked */
+  .frame-groups { flex-direction: row; gap: clamp(24px, 3vw, 56px); padding-top: 0; align-items: center; }
+  /* Heading on a shared top row, so both column titles line up however
+     tall each row of frames turns out to be. */
+  .frame-group { flex: 1; min-width: 0; display: grid; grid-template-rows: auto 1fr; align-items: center; }
+  .frame-group:first-child { flex: 1.15; }
+  /* Each kind scrolls inside its own column, so the rows can't run into
+     each other the way a full-bleed row would. */
+  .frame-row { margin: 0; padding: 4px 2px 10px; }
+  .frame-row[data-layout="vertical"] .frame-card canvas { height: 46vh; }
+  .frame-row[data-layout="grid"] .frame-card canvas { height: 30vh; }
+
+  /* 2. shoot: camera fills the height, takes stack down the side */
+  .screen[data-screen="shoot"] {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: clamp(10px, 1.6vh, 20px) clamp(20px, 2.6vw, 36px);
+    justify-content: center;
+  }
+  .screen[data-screen="shoot"] .head { grid-column: 1 / -1; }
+  .camera { grid-column: 1; grid-row: 2; width: auto; height: 100%; max-width: 100%; justify-self: center; }
+  .shot-strip {
+    grid-column: 2;
+    grid-row: 2;
+    grid-template-columns: 1fr;
+    align-content: center;
+    /* Narrow enough that six takes always fit the height beside the camera. */
+    width: clamp(70px, 8.2vw, 112px);
+    gap: clamp(5px, 0.9vh, 11px);
+  }
+
+  /* 3. pick: takes on the left, the decision on the right */
+  .screen[data-screen="pick"] {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) clamp(230px, 25vw, 320px);
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: clamp(10px, 1.6vh, 20px) clamp(24px, 3vw, 44px);
+  }
+  .screen[data-screen="pick"] .head { grid-column: 1 / -1; }
+  .pick-grid { grid-column: 1; grid-row: 2; padding: 0; }
+  .pick-foot { grid-column: 2; grid-row: 2; flex-direction: column; align-items: stretch; justify-content: center; gap: clamp(14px, 2.2vh, 24px); }
+  .pick-foot .stack { flex: none; }
+  /* Sized by height so the canvas keeps its own shape, with no empty
+     box around it. */
+  .pick-preview { height: 38vh; width: auto; max-width: 100%; box-shadow: none; align-self: center; }
+
+  /* 4. result: the print holds the long edge, the QR card sits beside it */
+  .screen[data-screen="result"] {
+    display: grid;
+    grid-template-columns: minmax(0, auto) clamp(300px, 33vw, 430px);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    justify-content: center;
+    gap: clamp(10px, 1.6vh, 20px) clamp(24px, 3vw, 44px);
+  }
+  .screen[data-screen="result"] .head { grid-column: 1 / -1; }
+  .result-print { grid-column: 1; grid-row: 2 / span 2; }
+  .share { grid-column: 2; grid-row: 2; flex-direction: column; text-align: center; justify-content: center; }
+  .share-text { align-items: center; }
+  .share-main { text-wrap: balance; }
+  .result-foot { grid-column: 2; grid-row: 3; flex-direction: column; align-items: stretch; gap: 10px; }
+  .result-foot .idle-note { text-align: center; }
+
+  /* admin: the register sheet has room for a wider preview */
+  dialog.sheet { max-height: 96dvh; }
+  .keypad button { min-height: 62px; }
 }
