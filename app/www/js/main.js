@@ -106,7 +106,7 @@ async function renderFrameRows() {
       row.append(card);
 
       const image = await library.imageFor(frame).catch(() => null);
-      renderComposite(canvas, frame, [], image, { placeholder: "#E6E8EB", scale: 0.35 });
+      renderComposite(canvas, frame, [], image, { placeholder: "#E9E9E6", scale: 0.35 });
     }
   }
 }
@@ -262,7 +262,7 @@ async function updatePick() {
 
   const image = await library.imageFor(state.frame).catch(() => null);
   renderComposite($("pick-preview"), state.frame, state.picked.map((i) => state.shots[i].bitmap), image, {
-    placeholder: "#E6E8EB",
+    placeholder: "#E9E9E6",
     scale: 0.3,
   });
 }

@@ -137,7 +137,7 @@ export function setupAdmin({ api, library, show, goHome, toast }) {
         image = null;
       }
     }
-    renderComposite(canvas, { layout: f.layout, kind: "png" }, [], image, { placeholder: "#E6E8EB", scale: 0.1 });
+    renderComposite(canvas, { layout: f.layout, kind: "png" }, [], image, { placeholder: "#E9E9E6", scale: 0.1 });
 
     const meta = document.createElement("div");
     meta.className = "meta";
@@ -236,7 +236,7 @@ export function setupAdmin({ api, library, show, goHome, toast }) {
     if (blocked.length) return showRegister({ title: "등록할 수 없어요", message: blockedSlotsMessage(blocked) });
 
     pending = { layout, canvas };
-    renderComposite($("register-preview"), { layout, kind: "png" }, [], canvas, { placeholder: "#E6E8EB", scale: 0.4 });
+    renderComposite($("register-preview"), { layout, kind: "png" }, [], canvas, { placeholder: "#E9E9E6", scale: 0.4 });
     $("register-name").value = defaultFrameName(file.name);
     $("register-layout").textContent = `${spec.label} 프레임으로 등록돼요`;
     $("register-submit").disabled = false;

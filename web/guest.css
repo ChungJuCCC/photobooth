@@ -1,18 +1,20 @@
 :root {
+  /* Neutral greys, no blue cast: photos keep their own colour. */
   --paper: #ffffff;
-  --surface: #f2f3f4;
-  --line: #d9dce0;
-  --muted: #6b7078;
+  --surface: #f1f1f0;
+  --line: #e0e0dd;
+  --line-strong: #c9c9c5;
+  --muted: #5f5f5c;
   --ink: #000000;
 
   --font: "Wanted Sans Variable", "Wanted Sans", -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
 
   --step--1: 0.8125rem;
   --step-0: 1rem;
-  --step-1: 1.25rem;
-  --step-2: 1.625rem;
+  --step-1: 1.1875rem;
+  --step-2: 1.75rem;
 
-  --gutter: 20px;
+  --gutter: 22px;
   --sheet-height: 132px;
 }
 
@@ -27,6 +29,7 @@ body {
   font-family: var(--font);
   font-size: var(--step-0);
   line-height: 1.55;
+  word-break: keep-all;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -35,43 +38,48 @@ body {
 .page {
   max-width: 480px;
   margin: 0 auto;
-  padding: max(28px, env(safe-area-inset-top)) var(--gutter) 40px;
+  padding: max(22px, env(safe-area-inset-top)) var(--gutter) 40px;
 }
 
 body.has-sheet .page { padding-bottom: calc(var(--sheet-height) + 32px + env(safe-area-inset-bottom)); }
 
+/* Masthead: names the event, then gets out of the way. */
 .event {
   font-size: var(--step--1);
-  color: var(--muted);
-  margin-bottom: 20px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  color: var(--ink);
+  padding-bottom: 14px;
+  margin-bottom: 26px;
+  border-bottom: 1px solid var(--line);
 }
 
-.state { display: flex; flex-direction: column; gap: 14px; }
+.state { display: flex; flex-direction: column; gap: 12px; }
 
 .state[data-state="loading"],
-.state[data-state="pending"] { padding-top: 18vh; }
+.state[data-state="pending"] { padding-top: 16vh; }
 
 .state[data-state="expired"],
 .state[data-state="invalid"],
-.state[data-state="error"] { padding-top: 22vh; }
+.state[data-state="error"] { padding-top: 20vh; }
 
 h1 {
   font-size: var(--step-2);
   font-weight: 700;
-  line-height: 1.25;
-  letter-spacing: -0.02em;
+  line-height: 1.2;
+  letter-spacing: -0.03em;
   text-wrap: balance;
 }
 
 .lede {
   color: var(--muted);
-  max-width: 34ch;
+  max-width: 32ch;
   text-wrap: pretty;
 }
 
-/* Photos sit on the page like prints: square corners, no frame chrome. */
-.print { display: flex; flex-direction: column; align-items: center; gap: 10px; }
-.print + .print { margin-top: 28px; }
+/* Photos sit on the page like prints: square corners, one soft shadow. */
+.print { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.print + .print { margin-top: 36px; }
 
 .print img,
 .print video {
@@ -83,7 +91,8 @@ h1 {
   background: var(--surface);
 }
 
-.print img { box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08), 0 12px 32px -12px rgba(0, 0, 0, 0.22); }
+.print img,
+.print video { box-shadow: 0 1px 2px rgba(0, 0, 0, 0.07), 0 18px 40px -18px rgba(0, 0, 0, 0.28); }
 
 .print figcaption {
   font-size: var(--step--1);
@@ -91,18 +100,20 @@ h1 {
 }
 
 .hint {
-  margin-top: 18px;
+  margin-top: 22px;
   font-size: var(--step--1);
   color: var(--muted);
   text-align: center;
+  text-wrap: pretty;
 }
 
 .spinner {
-  width: 28px;
-  height: 28px;
-  border: 2.5px solid var(--line);
+  width: 26px;
+  height: 26px;
+  border: 2px solid var(--line-strong);
   border-top-color: var(--ink);
   border-radius: 50%;
+  margin-bottom: 4px;
   animation: spin 0.9s linear infinite;
 }
 
@@ -114,8 +125,8 @@ h1 {
   position: fixed;
   inset: auto 0 0 0;
   background: var(--paper);
-  border-top: 1px solid var(--line);
-  padding: 14px var(--gutter) max(16px, env(safe-area-inset-bottom));
+  padding: 16px var(--gutter) max(18px, env(safe-area-inset-bottom));
+  box-shadow: 0 -1px 0 var(--line), 0 -14px 32px -20px rgba(0, 0, 0, 0.35);
 }
 
 .sheet > * { max-width: 480px; margin-left: auto; margin-right: auto; }
@@ -123,7 +134,7 @@ h1 {
 .countdown {
   font-size: var(--step--1);
   color: var(--muted);
-  margin-bottom: 10px;
+  margin-bottom: 12px;
   font-variant-numeric: tabular-nums;
 }
 
@@ -134,21 +145,22 @@ h1 {
 
 .button {
   appearance: none;
-  min-height: 52px;
+  min-height: 54px;
   padding: 0 22px;
   border-radius: 999px;
   font: inherit;
   font-weight: 600;
   font-size: var(--step-0);
+  letter-spacing: -0.01em;
   cursor: pointer;
   touch-action: manipulation;
   transition: opacity 120ms ease-out;
 }
 
-.button.primary { background: var(--ink); color: var(--paper); border: 1.5px solid var(--ink); }
-.button.secondary { background: var(--paper); color: var(--ink); border: 1.5px solid var(--ink); }
+.button.primary { background: var(--ink); color: var(--paper); border: 0; }
+.button.secondary { background: var(--paper); color: var(--ink); border: 1.5px solid var(--line-strong); }
 
-.state .button { align-self: flex-start; margin-top: 8px; }
+.state .button { align-self: flex-start; margin-top: 10px; }
 
 .button:active { opacity: 0.6; }
 .button:disabled { opacity: 0.4; cursor: default; }
