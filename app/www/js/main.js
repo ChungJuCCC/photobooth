@@ -18,7 +18,11 @@ const TICK_MS = 1000;
 const COUNTDOWN_TICKS = 4; // plus one for the very first shot, which needs settling time
 const IDLE_MS = 60_000;
 const IDLE_WARN_MS = 15_000;
-const FRAME_REFRESH_MS = 6 * 60 * 60 * 1000; // also keeps a free Supabase project awake
+// A frame registered on one tablet should appear on the others while the
+// event is still running, so the waiting screen polls rather than sitting on
+// a cached list. It also keeps a free Supabase project awake.
+const FRAME_REFRESH_MS = 5 * 60 * 1000;
+const FRAME_STALE_MS = 60 * 1000;
 
 const $ = (id) => document.getElementById(id);
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -74,7 +78,7 @@ function goHome() {
   state.sessionId = null;
   state.videoPromise = null;
   show("frames");
-  if (Date.now() - library.lastRefresh > 10 * 60_000) library.refresh().catch(() => {});
+  if (Date.now() - library.lastRefresh > FRAME_STALE_MS) library.refresh().catch(() => {});
 }
 
 function releaseShots() {
@@ -417,7 +421,7 @@ async function boot() {
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState !== "visible") return;
     queue.process();
-    if (state.screen === "frames" && Date.now() - library.lastRefresh > 10 * 60_000) library.refresh().catch(() => {});
+    if (state.screen === "frames" && Date.now() - library.lastRefresh > FRAME_STALE_MS) library.refresh().catch(() => {});
   });
 
   setupAdmin({ api, library, show, goHome, toast });
