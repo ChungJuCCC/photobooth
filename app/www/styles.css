@@ -449,9 +449,10 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.45); }
   /* 4. result: the print holds the long edge, the QR card sits beside it */
   .screen[data-screen="result"] {
     display: grid;
-    grid-template-columns: minmax(0, auto) clamp(300px, 33vw, 430px);
+    /* The print is an absolutely positioned canvas, so its column has no
+       intrinsic width: it has to be given one, or the print disappears. */
+    grid-template-columns: minmax(0, 1fr) clamp(300px, 33vw, 430px);
     grid-template-rows: auto minmax(0, 1fr) auto;
-    justify-content: center;
     gap: clamp(10px, 1.6vh, 20px) clamp(24px, 3vw, 44px);
   }
   .screen[data-screen="result"] .head { grid-column: 1 / -1; }

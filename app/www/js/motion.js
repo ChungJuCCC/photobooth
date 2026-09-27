@@ -15,31 +15,56 @@ import { paintPrint } from "./compose.js";
 import { LAYOUTS, PHOTO_RATIO } from "./layouts.js";
 
 export const CLIP_SAMPLE_MS = 100; // 10 fps captured, replayed at 30 fps → 3× speed
-export const CLIP_FRAMES = 20; // the two seconds leading up to each shutter
+// Forward and back at 30 fps, this lands a hair under 2.5 seconds per loop.
+export const CLIP_FRAMES = 38;
 
-const CLIP_WIDTH = 256;
+// Frames are kept as JPEGs, not as bitmaps: at this size 38 frames × 6 takes
+// would be ~90 MB of raw pixels, which a cheap tablet will not survive. They
+// are decoded one at a time while encoding instead.
+const CLIP_WIDTH = 480;
 const CLIP_HEIGHT = Math.round(CLIP_WIDTH / PHOTO_RATIO);
+const CLIP_QUALITY = 0.82;
 
 const OUTPUT_FPS = 30;
 const FRAME_US = Math.round(1_000_000 / OUTPUT_FPS);
-const BITRATE = 2_500_000;
+const BITRATE = 4_000_000;
 
-// H.264 baseline 3.1 tops out near 3600 macroblocks, so the print is encoded
-// smaller than it is printed. Both sides stay even for 4:2:0 chroma.
+// Best size first. H.264 level 4.0 allows the full sheet; level 3.1 caps out
+// near 3600 macroblocks, so older encoders get the smaller one. Every side is
+// even for 4:2:0 chroma.
 const OUTPUT_SIZES = {
-  vertical: { width: 544, height: 1632 },
-  grid: { width: 712, height: 1264 },
+  vertical: [
+    { width: 720, height: 2158, codec: "avc1.420028" },
+    { width: 544, height: 1632, codec: "avc1.42001f" },
+  ],
+  grid: [
+    { width: 1080, height: 1920, codec: "avc1.420028" },
+    { width: 712, height: 1264, codec: "avc1.42001f" },
+  ],
 };
 
-function encoderConfig({ width, height }) {
+function encoderConfig({ width, height, codec }) {
   return {
-    codec: "avc1.42001f",
+    codec,
     width,
     height,
     bitrate: BITRATE,
     framerate: OUTPUT_FPS,
     avc: { format: "avc" },
   };
+}
+
+async function pickSize(layout) {
+  const options = OUTPUT_SIZES[layout] ?? OUTPUT_SIZES.vertical;
+  if (typeof VideoEncoder === "undefined") return options[options.length - 1];
+  for (const size of options) {
+    try {
+      if ((await VideoEncoder.isConfigSupported(encoderConfig(size))).supported === true) return size;
+    } catch {
+      // try the next one down
+    }
+  }
+  return options[options.length - 1];
 }
 
 // Forward then back, so the clip loops without a jump.
@@ -75,8 +100,9 @@ export class ClipRecorder {
     this.busy = true;
     try {
       drawMirrored(this.ctx, this.video, centerCrop(vw, vh, PHOTO_RATIO), CLIP_WIDTH, CLIP_HEIGHT);
-      this.ring.push(await createImageBitmap(this.canvas));
-      while (this.ring.length > CLIP_FRAMES) this.ring.shift().close();
+      const frame = await new Promise((r) => this.canvas.toBlob(r, "image/jpeg", CLIP_QUALITY));
+      if (frame) this.ring.push(frame);
+      while (this.ring.length > CLIP_FRAMES) this.ring.shift();
     } catch {
       // A dropped sample only makes the clip a frame shorter.
     } finally {
@@ -94,7 +120,6 @@ export class ClipRecorder {
   stop() {
     clearInterval(this.timer);
     this.timer = 0;
-    for (const frame of this.ring) frame.close();
     this.ring = [];
   }
 
@@ -102,14 +127,13 @@ export class ClipRecorder {
   keepOnly(indexes) {
     this.clips.forEach((clip, i) => {
       if (!clip || indexes.includes(i)) return;
-      for (const frame of clip) frame.close();
       this.clips[i] = null;
     });
   }
 
   release() {
     this.stop();
-    this.keepOnly([]);
+    this.clips = [];
     this.canvas.width = this.canvas.height = 0;
   }
 
@@ -121,11 +145,14 @@ export class ClipRecorder {
 
 // ── rendering ─────────────────────────────────────────────────────────
 
-function drawSequenceFrame(ctx, { frame, frameImage, clips, when, order, step, scale }) {
-  ctx.setTransform(scale, 0, 0, scale, 0, 0);
+async function drawSequenceFrame(ctx, { frame, frameImage, clips, when, order, step, scale }) {
   const at = order[step % order.length];
-  const sources = clips.map((clip) => clip[Math.min(at, clip.length - 1)]);
+  const sources = await Promise.all(
+    clips.map((clip) => createImageBitmap(clip[Math.min(at, clip.length - 1)]))
+  );
+  ctx.setTransform(scale, 0, 0, scale, 0, 0);
   paintPrint(ctx, frame, sources, frameImage, when);
+  for (const source of sources) source.close();
 }
 
 async function encodeWithWebCodecs({ frame, frameImage, clips, when, size }) {
@@ -162,7 +189,7 @@ async function encodeWithWebCodecs({ frame, frameImage, clips, when, size }) {
 
   try {
     for (let step = 0; step < order.length && !failure; step++) {
-      drawSequenceFrame(ctx, { frame, frameImage, clips, when, order, step, scale });
+      await drawSequenceFrame(ctx, { frame, frameImage, clips, when, order, step, scale });
       const videoFrame = new VideoFrame(canvas, { timestamp: step * FRAME_US, duration: FRAME_US });
       try {
         encoder.encode(videoFrame, { keyFrame: step === 0 });
@@ -220,11 +247,11 @@ async function encodeWithRecorder({ frame, frameImage, clips, when, size }) {
   });
 
   recorder.start(1000);
-  const total = order.length * 2; // two turns, so even a short clip yields a file
+  const total = order.length; // one full turn; the player loops it
   const t0 = performance.now();
   try {
     for (let step = 0; step < total; step++) {
-      drawSequenceFrame(ctx, { frame, frameImage, clips, when, order, step, scale });
+      await drawSequenceFrame(ctx, { frame, frameImage, clips, when, order, step, scale });
       track.requestFrame?.();
       const due = t0 + ((step + 1) * 1000) / OUTPUT_FPS - performance.now();
       if (due > 0) await new Promise((r) => setTimeout(r, due));
@@ -243,7 +270,7 @@ async function encodeWithRecorder({ frame, frameImage, clips, when, size }) {
 // clips: four arrays of ImageBitmaps, in slot order.
 export async function renderMotionPrint({ frame, frameImage, clips, when = new Date() }) {
   if (!clips?.length || clips.some((clip) => !clip?.length)) return null;
-  const size = OUTPUT_SIZES[frame.layout] ?? OUTPUT_SIZES.vertical;
+  const size = await pickSize(frame.layout);
   const args = { frame, frameImage, clips, when, size };
   try {
     const mp4 = await encodeWithWebCodecs(args);
