@@ -14,7 +14,8 @@ import { centerCrop, drawMirrored } from "./camera.js";
 import { paintPrint } from "./compose.js";
 import { captureSize, LAYOUTS, PHOTO_RATIO } from "./layouts.js";
 
-export const CLIP_SAMPLE_MS = 100; // 10 fps captured, replayed at 15 → 1.5× speed
+// Sampled and replayed at the same rate, so the clip runs at life speed.
+export const CLIP_SAMPLE_MS = 67; // 15 fps
 // Forward and back at 15 fps, this lands a hair over three seconds per loop.
 export const CLIP_FRAMES = 24;
 
