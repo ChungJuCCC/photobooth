@@ -80,6 +80,7 @@ jobs:
               boothKey: process.env.BOOTH_KEY,
               guestPageUrl: process.env.GUEST_PAGE_URL,
               eventName: process.env.EVENT_NAME || "",
+              version: process.env.APP_VERSION_NAME,
             };
             require("fs").writeFileSync("www/config.js", "window.BOOTH_CONFIG = " + JSON.stringify(config, null, 2) + ";\n");
           '

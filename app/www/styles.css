@@ -149,8 +149,27 @@ h2 {
   position: absolute;
   top: 0;
   right: 0;
-  width: 96px;
-  height: 96px;
+  width: 128px;
+  height: 128px;
+  /* Without this the browser treats the hold as a possible scroll and
+     cancels the pointer part-way through. */
+  touch-action: none;
+}
+
+/* The only sign the hold is working: a quiet wedge filling in the corner. */
+.admin-hotspot::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(225deg, rgba(0, 0, 0, 0.18), transparent 62%);
+  opacity: 0;
+  pointer-events: none;
+}
+.admin-hotspot.holding::after { animation: hold-hint 3s linear forwards; }
+@keyframes hold-hint {
+  0% { opacity: 0; }
+  25% { opacity: 0.35; }
+  100% { opacity: 1; }
 }
 
 /* ── 2. shoot ─────────────────────────────────────────────────────── */
@@ -289,6 +308,7 @@ h2 {
 /* ── admin ────────────────────────────────────────────────────────── */
 
 .admin-spec { font-size: var(--t-small); color: var(--muted); margin-top: -8px; }
+.admin-version { font-size: var(--t-small); color: var(--muted); font-variant-numeric: tabular-nums; }
 .admin-message { font-size: var(--t-small); font-weight: 600; }
 
 .admin-list { list-style: none; overflow-y: auto; flex: 1; min-height: 0; border-top: 1px solid var(--line); background: var(--paper); border-radius: var(--radius-sm); }
@@ -365,6 +385,7 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.45); }
 
 @media (prefers-reduced-motion: reduce) {
   .screen.entering, .result-print canvas.develop, .countdown.tick { animation-duration: 1ms; }
+  .admin-hotspot.holding::after { animation: none; opacity: 0.5; }
   .countdown.tick { animation: none; opacity: 1; }
 }
 

@@ -21,15 +21,64 @@ export function setupAdmin({ api, library, show, goHome, toast }) {
   let adminPin = null;
   let pending = null; // { layout, canvas } of the PNG being registered
 
+  const version = $("app-version");
+  if (version) version.textContent = `버전 ${window.BOOTH_CONFIG?.version || "개발"}`;
+
   // ── entry gesture ────────────────────────────────────────────────────
+  // A finger never holds perfectly still for three seconds, and Android
+  // cancels the pointer as soon as it reads the drift as a scroll. Capture
+  // the pointer, allow real drift, and only give up if the finger lifts or
+  // travels far enough to be somewhere else on purpose.
   const hotspot = $("admin-hotspot");
+  const DRIFT_LIMIT = 60;
   let holdTimer = 0;
-  const cancelHold = () => clearTimeout(holdTimer);
-  hotspot.addEventListener("pointerdown", () => {
+  let origin = null;
+
+  const cancelHold = () => {
+    clearTimeout(holdTimer);
+    holdTimer = 0;
+    origin = null;
+    hotspot.classList.remove("holding");
+  };
+
+  hotspot.addEventListener("pointerdown", (e) => {
     cancelHold();
-    holdTimer = setTimeout(openPin, HOLD_MS);
+    origin = { x: e.clientX, y: e.clientY };
+    try {
+      hotspot.setPointerCapture(e.pointerId);
+    } catch {
+      // Capture is a nicety; the hold still works without it.
+    }
+    hotspot.classList.add("holding");
+    holdTimer = setTimeout(() => {
+      cancelHold();
+      openPin();
+    }, HOLD_MS);
   });
-  for (const type of ["pointerup", "pointerleave", "pointercancel"]) hotspot.addEventListener(type, cancelHold);
+
+  hotspot.addEventListener("pointermove", (e) => {
+    if (!origin) return;
+    if (Math.hypot(e.clientX - origin.x, e.clientY - origin.y) > DRIFT_LIMIT) cancelHold();
+  });
+
+  // Second way in, for tablets where the OS keeps eating the long press:
+  // five taps on the same corner inside two seconds.
+  const TAP_TARGET = 5;
+  const TAP_WINDOW_MS = 2000;
+  let taps = [];
+
+  hotspot.addEventListener("pointerup", () => {
+    const now = Date.now();
+    taps = taps.filter((t) => now - t < TAP_WINDOW_MS);
+    taps.push(now);
+    if (taps.length >= TAP_TARGET) {
+      taps = [];
+      cancelHold();
+      openPin();
+    }
+  });
+
+  for (const type of ["pointerup", "pointercancel"]) hotspot.addEventListener(type, cancelHold);
   hotspot.addEventListener("contextmenu", (e) => e.preventDefault());
 
   // ── PIN ──────────────────────────────────────────────────────────────
