@@ -28,7 +28,7 @@ const BITRATE = 2_500_000;
 // smaller than it is printed. Both sides stay even for 4:2:0 chroma.
 const OUTPUT_SIZES = {
   vertical: { width: 544, height: 1632 },
-  grid: { width: 896, height: 1000 },
+  grid: { width: 712, height: 1264 },
 };
 
 function encoderConfig({ width, height }) {

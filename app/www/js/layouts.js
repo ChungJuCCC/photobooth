@@ -20,12 +20,12 @@ export const LAYOUTS = {
     key: "grid",
     label: "바둑판",
     width: 1080,
-    height: 1200,
+    height: 1920,
     slots: [
-      { x: 40, y: 175, w: 487, h: 386 },
-      { x: 553, y: 175, w: 487, h: 386 },
-      { x: 40, y: 587, w: 487, h: 386 },
-      { x: 553, y: 587, w: 487, h: 386 },
+      { x: 72, y: 82, w: 456, h: 676 },
+      { x: 552, y: 82, w: 456, h: 676 },
+      { x: 72, y: 781, w: 456, h: 676 },
+      { x: 552, y: 781, w: 456, h: 676 },
     ],
   },
 };
@@ -82,7 +82,7 @@ export function frameProblem({ type, name, bytes, width, height }) {
   if (!isPng) return "PNG 파일만 등록할 수 있어요. 사진 칸이 뚫려 있어야 해서 투명 배경을 담을 수 있는 PNG만 됩니다.";
   if (bytes > MAX_FRAME_BYTES) return "파일이 너무 커요. 10MB 이하로 줄여주세요.";
   if (!detectLayout(width, height)) {
-    return `세로 4컷은 591×1772, 바둑판은 1080×1200 비율이어야 해요. 지금 파일은 ${width}×${height}이에요.`;
+    return `세로 4컷은 591×1772, 바둑판은 1080×1920 비율이어야 해요. 지금 파일은 ${width}×${height}이에요.`;
   }
   return null;
 }
@@ -134,12 +134,12 @@ export function builtinFrames(eventName) {
           } else {
             if (title) {
               ctx.fillStyle = tone.ink;
-              ctx.font = `700 48px "Wanted Sans Variable", sans-serif`;
-              ctx.fillText(title.slice(0, 24), layout.width / 2, 92);
+              ctx.font = `700 44px "Wanted Sans Variable", sans-serif`;
+              ctx.fillText(title.slice(0, 24), layout.width / 2, 1560);
             }
             ctx.fillStyle = tone.muted;
             ctx.font = `500 28px "Wanted Sans Variable", sans-serif`;
-            ctx.fillText(dateLabel(when), layout.width / 2, title ? 1090 : 92);
+            ctx.fillText(dateLabel(when), layout.width / 2, title ? 1630 : 1560);
           }
           ctx.restore();
         },

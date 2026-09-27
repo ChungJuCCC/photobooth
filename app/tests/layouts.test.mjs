@@ -14,9 +14,9 @@ import {
 test("detectLayout accepts any scale with matching proportions", () => {
   assert.equal(detectLayout(591, 1772), "vertical");
   assert.equal(detectLayout(1182, 3544), "vertical");
-  assert.equal(detectLayout(1080, 1200), "grid");
-  assert.equal(detectLayout(2160, 2400), "grid");
-  assert.equal(detectLayout(1000, 1110), "grid", "within 1%");
+  assert.equal(detectLayout(1080, 1920), "grid");
+  assert.equal(detectLayout(2160, 3840), "grid");
+  assert.equal(detectLayout(1080, 1930), "grid", "within 1%");
 });
 
 test("detectLayout rejects other proportions", () => {
@@ -30,9 +30,9 @@ test("frameProblem explains what is wrong", () => {
   assert.match(frameProblem({ type: "image/png", name: "a.png", bytes: 11 * 1024 * 1024, width: 591, height: 1772 }), /10MB/);
   assert.equal(
     frameProblem({ type: "image/png", name: "a.png", bytes: 10, width: 1000, height: 1500 }),
-    "세로 4컷은 591×1772, 바둑판은 1080×1200 비율이어야 해요. 지금 파일은 1000×1500이에요.",
+    "세로 4컷은 591×1772, 바둑판은 1080×1920 비율이어야 해요. 지금 파일은 1000×1500이에요.",
   );
-  assert.equal(frameProblem({ type: "", name: "frame.PNG", bytes: 10, width: 1080, height: 1200 }), null);
+  assert.equal(frameProblem({ type: "", name: "frame.PNG", bytes: 10, width: 1080, height: 1920 }), null);
 });
 
 function alphaMap(layoutKey, opaqueSlots) {
