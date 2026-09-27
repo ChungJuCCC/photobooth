@@ -21,12 +21,10 @@ function drawCover(ctx, source, slot) {
 // sources: up to four drawables (ImageBitmap/canvas) in slot order.
 // frameImage: decoded PNG for registered frames, ignored for built-ins.
 // scale < 1 renders a smaller copy (thumbnails) without allocating full-size pixels.
-export function renderComposite(canvas, frame, sources, frameImage, { placeholder = null, when = new Date(), scale = 1 } = {}) {
+// Paints one print into a context already scaled to layout coordinates.
+// Shared by the still photo and by every frame of the moving version.
+export function paintPrint(ctx, frame, sources, frameImage, when = new Date(), placeholder = null) {
   const layout = LAYOUTS[frame.layout];
-  canvas.width = Math.round(layout.width * scale);
-  canvas.height = Math.round(layout.height * scale);
-  const ctx = canvas.getContext("2d");
-  ctx.setTransform(scale, 0, 0, scale, 0, 0);
 
   ctx.fillStyle = frame.paper ?? "#FFFFFF";
   ctx.fillRect(0, 0, layout.width, layout.height);
@@ -41,6 +39,15 @@ export function renderComposite(canvas, frame, sources, frameImage, { placeholde
 
   if (frame.kind === "builtin") frame.paintOverlay(ctx, when);
   else if (frameImage) ctx.drawImage(frameImage, 0, 0, layout.width, layout.height);
+}
+
+export function renderComposite(canvas, frame, sources, frameImage, { placeholder = null, when = new Date(), scale = 1 } = {}) {
+  const layout = LAYOUTS[frame.layout];
+  canvas.width = Math.round(layout.width * scale);
+  canvas.height = Math.round(layout.height * scale);
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(scale, 0, 0, scale, 0, 0);
+  paintPrint(ctx, frame, sources, frameImage, when, placeholder);
 }
 
 export function canvasToBlob(canvas, type = "image/jpeg", quality = 0.9) {

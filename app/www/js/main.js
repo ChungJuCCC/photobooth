@@ -6,7 +6,7 @@ import { canvasToBlob, renderComposite } from "./compose.js";
 import { deviceId as loadDeviceId } from "./db.js";
 import { FrameLibrary } from "./frames.js";
 import { UploadQueue } from "./queue.js";
-import { createTimelapse } from "./timelapse.js";
+import { ClipRecorder, renderMotionPrint } from "./motion.js";
 import { setupAdmin } from "./admin.js";
 import qrcode from "../vendor/qrcode.mjs";
 
@@ -14,7 +14,8 @@ const config = window.BOOTH_CONFIG ?? {};
 
 const SHOTS = 6;
 const PICKS = 4;
-const TICK_MS = 900;
+const TICK_MS = 1000;
+const COUNTDOWN_TICKS = 4; // plus one for the very first shot, which needs settling time
 const IDLE_MS = 60_000;
 const IDLE_WARN_MS = 15_000;
 const FRAME_REFRESH_MS = 6 * 60 * 60 * 1000; // also keeps a free Supabase project awake
@@ -31,6 +32,7 @@ const state = {
   sessionId: null,
   shots: [],
   picked: [],
+  clips: null,
   videoPromise: null,
   lastTouch: Date.now(),
   shooting: false,
@@ -66,6 +68,8 @@ function toast(message) {
 
 function goHome() {
   releaseShots();
+  state.clips?.release();
+  state.clips = null;
   state.frame = null;
   state.sessionId = null;
   state.videoPromise = null;
@@ -139,10 +143,12 @@ async function startSession(frame) {
     return showCameraError(err);
   }
 
-  let timelapse = null;
+  state.clips?.release();
+  state.clips = null;
+  let clips = null;
   try {
-    timelapse = await createTimelapse($("camera-video"), { caption: config.eventName ?? "" });
-    timelapse.start();
+    clips = new ClipRecorder($("camera-video"));
+    clips.start();
     await wait(1500);
 
     for (let i = 0; i < SHOTS; i++) {
@@ -150,7 +156,7 @@ async function startSession(frame) {
       $("shoot-title").textContent = i === 0 ? "자세를 잡아주세요" : ["좋아요, 다음 포즈", "표정을 바꿔볼까요", "한 번 더", "거의 다 왔어요", "마지막 한 장"][i - 1];
       strip.children[i].classList.add("current");
 
-      for (let n = i === 0 ? 3 : 2; n >= 1; n--) {
+      for (let n = i === 0 ? COUNTDOWN_TICKS + 1 : COUNTDOWN_TICKS; n >= 1; n--) {
         const el = $("countdown");
         el.textContent = n;
         el.classList.remove("tick");
@@ -165,6 +171,7 @@ async function startSession(frame) {
       flash.classList.add("fire");
 
       const shot = await camera.takePhoto();
+      clips.markShot(i);
       state.shots.push(shot);
       const img = document.createElement("img");
       img.src = shot.url;
@@ -174,19 +181,18 @@ async function startSession(frame) {
       await wait(350);
     }
 
-    // finish() stops sampling synchronously, so the camera can go off now.
-    // Encoding continues while the guests choose their four photos.
-    state.videoPromise = timelapse.finish().catch((err) => {
-      console.warn("timelapse failed", err);
-      return null;
-    });
+    // Sampling stops here so the camera can go off; the clips wait in memory
+    // until the guests have picked the four that go in the frame.
+    clips.stop();
+    state.clips = clips;
     camera.stop();
 
     state.picked = [];
     renderPick();
     show("pick");
   } catch (err) {
-    timelapse?.finish().catch(() => {});
+    clips?.release();
+    state.clips = null;
     camera.stop();
     showCameraError(err);
   } finally {
@@ -299,15 +305,32 @@ async function finishSession() {
   $("pick-confirm").disabled = true;
 
   // Capture everything this session needs; the guest may leave the result
-  // screen before the timelapse is ready, and the upload must still happen.
+  // screen before the video is ready, and the upload must still happen.
   const id = state.sessionId;
   const frame = state.frame;
-  const videoPromise = state.videoPromise;
+  const picked = [...state.picked];
 
   try {
     const canvas = $("result-canvas");
     const image = await library.imageFor(frame).catch(() => null);
-    renderComposite(canvas, frame, state.picked.map((i) => state.shots[i].bitmap), image);
+    renderComposite(canvas, frame, picked.map((i) => state.shots[i].bitmap), image);
+
+    // The clips belong to this render from here on, so going home (or an idle
+    // timeout) can't free the frames out from under the encoder.
+    const recorder = state.clips;
+    state.clips = null;
+    recorder?.keepOnly(picked);
+    const clips = recorder?.clipsFor(picked) ?? null;
+    const videoPromise = clips
+      ? renderMotionPrint({ frame, frameImage: image, clips })
+          .catch((err) => {
+            console.warn("moving print failed", err);
+            return null;
+          })
+          .finally(() => recorder.release())
+      : Promise.resolve(null);
+    state.videoPromise = videoPromise;
+    if (!clips) recorder?.release();
 
     drawQr($("qr-canvas"), guestUrl(id));
     canvas.classList.remove("develop");

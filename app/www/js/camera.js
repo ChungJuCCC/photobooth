@@ -1,14 +1,9 @@
-// Front camera, still photos, and timelapse frame sampling.
+// Front camera and still photos.
 
 import { PHOTO_RATIO } from "./layouts.js";
 
 const PHOTO_WIDTH = 998;
 const PHOTO_HEIGHT = Math.round(PHOTO_WIDTH / PHOTO_RATIO);
-
-export const TIMELAPSE_WIDTH = 720;
-export const TIMELAPSE_HEIGHT = 960;
-export const TIMELAPSE_SAMPLE_MS = 100; // 10 fps captured, played at 30 fps → 3× speed
-export const TIMELAPSE_MAX_FRAMES = 240; // 8 seconds of output at most
 
 export class CameraError extends Error {
   constructor(kind, cause) {
@@ -93,47 +88,5 @@ export class Camera {
     canvas.width = canvas.height = 0;
     const bitmap = await createImageBitmap(blob);
     return { blob, bitmap, url: URL.createObjectURL(blob) };
-  }
-}
-
-// Grabs small JPEG frames while the guests are being photographed.
-export class TimelapseSampler {
-  constructor(video) {
-    this.video = video;
-    this.frames = [];
-    this.timer = 0;
-    this.busy = false;
-    this.canvas = document.createElement("canvas");
-    this.canvas.width = TIMELAPSE_WIDTH;
-    this.canvas.height = TIMELAPSE_HEIGHT;
-  }
-
-  start() {
-    this.frames = [];
-    this.timer = setInterval(() => this.sample(), TIMELAPSE_SAMPLE_MS);
-  }
-
-  async sample() {
-    const { videoWidth: vw, videoHeight: vh } = this.video;
-    // Skip a tick instead of piling up encodes on a slow tablet.
-    if (this.busy || !vw || this.frames.length >= TIMELAPSE_MAX_FRAMES) return;
-    this.busy = true;
-    try {
-      const ctx = this.canvas.getContext("2d");
-      drawMirrored(ctx, this.video, centerCrop(vw, vh, TIMELAPSE_WIDTH / TIMELAPSE_HEIGHT), TIMELAPSE_WIDTH, TIMELAPSE_HEIGHT);
-      this.frames.push(await toBlob(this.canvas, "image/jpeg", 0.72));
-    } catch {
-      // a dropped frame is fine
-    } finally {
-      this.busy = false;
-    }
-  }
-
-  stop() {
-    clearInterval(this.timer);
-    this.timer = 0;
-    const frames = this.frames;
-    this.frames = [];
-    return frames;
   }
 }

@@ -78,7 +78,8 @@ export function findBlockedSlots(layoutKey, alphaAt) {
 // Human-readable reason a PNG can't be registered, or null if it can.
 export function frameProblem({ type, name, bytes, width, height }) {
   const isPng = type === "image/png" || /\.png$/i.test(name ?? "");
-  if (!isPng) return "PNG 파일만 등록할 수 있어요.";
+  // The picker now shows every image, so say why a JPEG can't be a frame.
+  if (!isPng) return "PNG 파일만 등록할 수 있어요. 사진 칸이 뚫려 있어야 해서 투명 배경을 담을 수 있는 PNG만 됩니다.";
   if (bytes > MAX_FRAME_BYTES) return "파일이 너무 커요. 10MB 이하로 줄여주세요.";
   if (!detectLayout(width, height)) {
     return `세로 4컷은 591×1772, 바둑판은 1080×1200 비율이어야 해요. 지금 파일은 ${width}×${height}이에요.`;
