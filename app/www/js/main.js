@@ -7,7 +7,7 @@ import { deviceId as loadDeviceId } from "./db.js";
 import { FrameLibrary } from "./frames.js";
 import { UploadQueue } from "./queue.js";
 import { ClipRecorder, renderMotionPrint } from "./motion.js";
-import { frameRatio } from "./layouts.js";
+import { frameRatio, LAYOUTS } from "./layouts.js";
 import { setupAdmin } from "./admin.js";
 import qrcode from "../vendor/qrcode.mjs";
 
@@ -152,7 +152,7 @@ async function startSession(frame) {
   state.clips = null;
   // Viewfinder, takes and clips all take the shape of the chosen frame's cuts,
   // which for a registered PNG are read from its own transparency.
-  await library.imageFor(state.frame).catch(() => null);
+  const frameImage = await library.imageFor(state.frame).catch(() => null);
   const ratio = frameRatio(state.frame);
   document.documentElement.style.setProperty("--shot-ratio", String(ratio));
   let clips = null;
@@ -165,6 +165,7 @@ async function startSession(frame) {
       $("shot-counter").textContent = `${i + 1} / ${SHOTS}`;
       $("shoot-title").textContent = i === 0 ? "자세를 잡아주세요" : ["좋아요, 다음 포즈", "표정을 바꿔볼까요", "한 번 더", "거의 다 왔어요", "마지막 한 장"][i - 1];
       strip.children[i].classList.add("current");
+      showCutArtwork(state.frame, frameImage, i);
 
       for (let n = i === 0 ? COUNTDOWN_TICKS + 1 : COUNTDOWN_TICKS; n >= 1; n--) {
         const el = $("countdown");
@@ -195,6 +196,7 @@ async function startSession(frame) {
     // until the guests have picked the four that go in the frame.
     clips.stop();
     state.clips = clips;
+    hideCutArtwork();
     camera.stop();
 
     state.picked = [];
@@ -203,11 +205,37 @@ async function startSession(frame) {
   } catch (err) {
     clips?.release();
     state.clips = null;
+    hideCutArtwork();
     camera.stop();
     showCameraError(err);
   } finally {
     state.shooting = false;
   }
+}
+
+// Shows the part of the frame that will cover this cut, over the live camera.
+// With six takes and four cuts the last two repeat the first two: the cut a
+// photo ends up in is decided later, by the order the guests pick them.
+function showCutArtwork(frame, image, shotIndex) {
+  const canvas = $("camera-overlay");
+  const slots = frame.kind === "png" && frame.slots ? frame.slots : null;
+  const slot = slots?.[shotIndex % slots.length];
+  if (!image || !slot) return hideCutArtwork();
+
+  // A frame may be exported at any multiple of the layout size.
+  const scale = image.width / LAYOUTS[frame.layout].width;
+  canvas.width = slot.w;
+  canvas.height = slot.h;
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, slot.w, slot.h);
+  ctx.drawImage(image, slot.x * scale, slot.y * scale, slot.w * scale, slot.h * scale, 0, 0, slot.w, slot.h);
+  canvas.hidden = false;
+}
+
+function hideCutArtwork() {
+  const canvas = $("camera-overlay");
+  canvas.hidden = true;
+  canvas.width = canvas.height = 0;
 }
 
 function showCameraError(err) {

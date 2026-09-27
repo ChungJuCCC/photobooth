@@ -187,6 +187,17 @@ h2 {
 }
 .camera video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); display: block; }
 
+/* The piece of the frame that will land over this cut, shown while people
+   pose so they can stand with the artwork instead of guessing where it is.
+   Not mirrored: the photo is captured mirrored, so this matches the print. */
+.camera-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
 .flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
 .flash.fire { animation: flash 380ms ease-out; }
 @keyframes flash { 0% { opacity: 0; } 10% { opacity: 1; } 100% { opacity: 0; } }
