@@ -310,7 +310,7 @@ describe("handlers", () => {
     mem.storageHttp.upload(uploadTicket(bad.signedUrl), pngHeader(591, 1772), "image/png");
     res = await admin({ action: "finish", frameId: bad.frameId, name: "틀린 크기", layout: "grid" });
     assert.equal(res.status, 422);
-    assert.deepEqual((await body(res)).expected, { width: 1080, height: 1200 });
+    assert.deepEqual((await body(res)).expected, { width: 1080, height: 1920 });
     assert.equal(mem.objects.has(`frames/${bad.frameId}.png`), false);
 
     // Finishing without uploading

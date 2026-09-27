@@ -12,7 +12,7 @@ export const MAX_FRAME_BYTES = 10 * 1024 * 1024;
 
 export const LAYOUT_SIZES = {
   vertical: { width: 591, height: 1772 },
-  grid: { width: 1080, height: 1200 },
+  grid: { width: 1080, height: 1920 },
 } as const;
 
 export type LayoutKey = keyof typeof LAYOUT_SIZES;
