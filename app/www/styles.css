@@ -179,7 +179,7 @@ h2 {
 .camera {
   position: relative;
   width: 100%;
-  aspect-ratio: 499 / 396;
+  aspect-ratio: var(--shot-ratio, 499 / 396);
   background: var(--surface);
   overflow: hidden;
   border-radius: var(--radius);
@@ -220,7 +220,7 @@ h2 {
 }
 
 .shot-strip { list-style: none; display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; }
-.shot-strip li { aspect-ratio: 499 / 396; background: var(--surface); border-radius: var(--radius-sm); box-shadow: inset 0 0 0 1px var(--line); overflow: hidden; transition: box-shadow 120ms ease-out; }
+.shot-strip li { aspect-ratio: var(--shot-ratio, 499 / 396); background: var(--surface); border-radius: var(--radius-sm); box-shadow: inset 0 0 0 1px var(--line); overflow: hidden; transition: box-shadow 120ms ease-out; }
 .shot-strip li.current { box-shadow: inset 0 0 0 3px var(--ink); }
 .shot-strip img { width: 100%; height: 100%; object-fit: cover; display: block; }
 
@@ -236,7 +236,7 @@ h2 {
   min-height: 0;
 }
 
-.pick-cell { position: relative; aspect-ratio: 499 / 396; background: var(--surface); border-radius: var(--radius-sm); overflow: hidden; box-shadow: var(--lift); }
+.pick-cell { position: relative; aspect-ratio: var(--shot-ratio, 499 / 396); background: var(--surface); border-radius: var(--radius-sm); overflow: hidden; box-shadow: var(--lift); }
 .pick-cell img { width: 100%; height: 100%; object-fit: cover; display: block; transition: opacity 120ms ease-out; }
 .pick-cell.selected { outline: 4px solid var(--ink); outline-offset: 4px; }
 .pick-grid.full .pick-cell:not(.selected) img { opacity: 0.35; }
@@ -421,15 +421,18 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.45); }
   }
   .screen[data-screen="shoot"] .head { grid-column: 1 / -1; }
   .camera { grid-column: 1; grid-row: 2; width: auto; height: 100%; max-width: 100%; justify-self: center; }
+  /* Sized by the height available, so six takes fit whatever shape they are. */
   .shot-strip {
     grid-column: 2;
     grid-row: 2;
-    grid-template-columns: 1fr;
-    align-content: center;
-    /* Narrow enough that six takes always fit the height beside the camera. */
-    width: clamp(70px, 8.2vw, 112px);
+    grid-template-columns: auto;
+    grid-auto-rows: 1fr;
+    justify-items: center;
+    align-content: stretch;
+    max-width: clamp(90px, 12vw, 170px);
     gap: clamp(5px, 0.9vh, 11px);
   }
+  .shot-strip li { height: 100%; width: auto; }
 
   /* 3. pick: takes on the left, the decision on the right */
   .screen[data-screen="pick"] {
@@ -439,7 +442,15 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.45); }
     gap: clamp(10px, 1.6vh, 20px) clamp(24px, 3vw, 44px);
   }
   .screen[data-screen="pick"] .head { grid-column: 1 / -1; }
-  .pick-grid { grid-column: 1; grid-row: 2; padding: 0; }
+  .pick-grid {
+    grid-column: 1;
+    grid-row: 2;
+    padding: 0;
+    grid-template-columns: repeat(3, auto);
+    grid-auto-rows: 1fr;
+    justify-content: center;
+  }
+  .pick-cell { height: 100%; width: auto; }
   .pick-foot { grid-column: 2; grid-row: 2; flex-direction: column; align-items: stretch; justify-content: center; gap: clamp(14px, 2.2vh, 24px); }
   .pick-foot .stack { flex: none; }
   /* Sized by height so the canvas keeps its own shape, with no empty

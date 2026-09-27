@@ -1,9 +1,8 @@
 // Front camera and still photos.
 
-import { PHOTO_RATIO } from "./layouts.js";
+import { captureSize, PHOTO_RATIO } from "./layouts.js";
 
-const PHOTO_WIDTH = 998;
-const PHOTO_HEIGHT = Math.round(PHOTO_WIDTH / PHOTO_RATIO);
+const PHOTO_LONG_SIDE = 1000;
 
 export class CameraError extends Error {
   constructor(kind, cause) {
@@ -76,14 +75,15 @@ export class Camera {
     this.video.srcObject = null;
   }
 
-  // One mirrored still, cropped to the photo slot proportions.
-  async takePhoto() {
+  // One mirrored still, in the shape of the chosen frame's cuts.
+  async takePhoto(ratio = PHOTO_RATIO) {
     const { videoWidth: vw, videoHeight: vh } = this.video;
     if (!vw || !vh) throw new CameraError("busy");
+    const { width, height } = captureSize(ratio, PHOTO_LONG_SIDE);
     const canvas = document.createElement("canvas");
-    canvas.width = PHOTO_WIDTH;
-    canvas.height = PHOTO_HEIGHT;
-    drawMirrored(canvas.getContext("2d"), this.video, centerCrop(vw, vh, PHOTO_RATIO), PHOTO_WIDTH, PHOTO_HEIGHT);
+    canvas.width = width;
+    canvas.height = height;
+    drawMirrored(canvas.getContext("2d"), this.video, centerCrop(vw, vh, ratio), width, height);
     const blob = await toBlob(canvas, "image/jpeg", 0.92);
     canvas.width = canvas.height = 0;
     const bitmap = await createImageBitmap(blob);

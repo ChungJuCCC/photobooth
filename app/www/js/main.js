@@ -7,6 +7,7 @@ import { deviceId as loadDeviceId } from "./db.js";
 import { FrameLibrary } from "./frames.js";
 import { UploadQueue } from "./queue.js";
 import { ClipRecorder, renderMotionPrint } from "./motion.js";
+import { slotRatio } from "./layouts.js";
 import { setupAdmin } from "./admin.js";
 import qrcode from "../vendor/qrcode.mjs";
 
@@ -149,9 +150,12 @@ async function startSession(frame) {
 
   state.clips?.release();
   state.clips = null;
+  // Viewfinder, takes and clips all take the shape of the chosen frame's cuts.
+  const ratio = slotRatio(state.frame.layout);
+  document.documentElement.style.setProperty("--shot-ratio", String(ratio));
   let clips = null;
   try {
-    clips = new ClipRecorder($("camera-video"));
+    clips = new ClipRecorder($("camera-video"), ratio);
     clips.start();
     await wait(1500);
 
@@ -174,7 +178,7 @@ async function startSession(frame) {
       void flash.offsetWidth;
       flash.classList.add("fire");
 
-      const shot = await camera.takePhoto();
+      const shot = await camera.takePhoto(ratio);
       clips.markShot(i);
       state.shots.push(shot);
       const img = document.createElement("img");

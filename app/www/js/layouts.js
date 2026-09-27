@@ -3,6 +3,20 @@
 
 export const PHOTO_RATIO = 499 / 396;
 
+// The camera shoots whatever shape the chosen frame's cuts are, so nothing has
+// to be cropped away between the viewfinder and the print.
+export function slotRatio(layoutKey) {
+  const slot = LAYOUTS[layoutKey]?.slots[0];
+  return slot ? slot.w / slot.h : PHOTO_RATIO;
+}
+
+// Pixel size for a capture of that shape, with the long side fixed.
+export function captureSize(ratio, longSide) {
+  return ratio >= 1
+    ? { width: longSide, height: Math.round(longSide / ratio) }
+    : { width: Math.round(longSide * ratio), height: longSide };
+}
+
 export const LAYOUTS = {
   vertical: {
     key: "vertical",

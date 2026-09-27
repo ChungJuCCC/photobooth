@@ -12,7 +12,7 @@
 import { ArrayBufferTarget, Muxer } from "../vendor/mp4-muxer.mjs";
 import { centerCrop, drawMirrored } from "./camera.js";
 import { paintPrint } from "./compose.js";
-import { LAYOUTS, PHOTO_RATIO } from "./layouts.js";
+import { captureSize, LAYOUTS, PHOTO_RATIO, slotRatio } from "./layouts.js";
 
 export const CLIP_SAMPLE_MS = 100; // 10 fps captured, replayed at 30 fps → 3× speed
 // Forward and back at 30 fps, this lands a hair under 2.5 seconds per loop.
@@ -21,11 +21,12 @@ export const CLIP_FRAMES = 38;
 // Frames are kept as JPEGs, not as bitmaps: at this size 38 frames × 6 takes
 // would be ~90 MB of raw pixels, which a cheap tablet will not survive. They
 // are decoded one at a time while encoding instead.
-const CLIP_WIDTH = 480;
-const CLIP_HEIGHT = Math.round(CLIP_WIDTH / PHOTO_RATIO);
+const CLIP_LONG_SIDE = 640;
 const CLIP_QUALITY = 0.82;
 
-const OUTPUT_FPS = 30;
+// Captured at 10 fps and replayed at 25, so the loop runs 2.5× life speed and
+// lands just under three seconds.
+const OUTPUT_FPS = 25;
 const FRAME_US = Math.round(1_000_000 / OUTPUT_FPS);
 const BITRATE = 4_000_000;
 
@@ -78,11 +79,13 @@ export function pingPong(length) {
 // ── recording ─────────────────────────────────────────────────────────
 
 export class ClipRecorder {
-  constructor(video) {
+  constructor(video, ratio = PHOTO_RATIO) {
     this.video = video;
+    this.ratio = ratio;
+    const { width, height } = captureSize(ratio, CLIP_LONG_SIDE);
     this.canvas = document.createElement("canvas");
-    this.canvas.width = CLIP_WIDTH;
-    this.canvas.height = CLIP_HEIGHT;
+    this.canvas.width = width;
+    this.canvas.height = height;
     this.ctx = this.canvas.getContext("2d");
     this.ring = [];
     this.clips = [];
@@ -99,7 +102,7 @@ export class ClipRecorder {
     if (this.busy || !this.timer || !vw) return;
     this.busy = true;
     try {
-      drawMirrored(this.ctx, this.video, centerCrop(vw, vh, PHOTO_RATIO), CLIP_WIDTH, CLIP_HEIGHT);
+      drawMirrored(this.ctx, this.video, centerCrop(vw, vh, this.ratio), this.canvas.width, this.canvas.height);
       const frame = await new Promise((r) => this.canvas.toBlob(r, "image/jpeg", CLIP_QUALITY));
       if (frame) this.ring.push(frame);
       while (this.ring.length > CLIP_FRAMES) this.ring.shift();
