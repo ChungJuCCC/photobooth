@@ -3,15 +3,8 @@
 // action and only kept in memory while the admin screen is open.
 
 import { ApiError } from "./api.js";
-import { renderComposite } from "./compose.js";
-import {
-  blockedSlotsMessage,
-  defaultFrameName,
-  detectLayout,
-  findBlockedSlots,
-  frameProblem,
-  LAYOUTS,
-} from "./layouts.js";
+import { readSlots, renderComposite } from "./compose.js";
+import { defaultFrameName, detectLayout, frameProblem, LAYOUTS, slotProblem } from "./layouts.js";
 
 const HOLD_MS = 3000;
 const $ = (id) => document.getElementById(id);
@@ -280,12 +273,12 @@ export function setupAdmin({ api, library, show, goHome, toast }) {
     ctx.drawImage(bitmap, 0, 0, spec.width, spec.height);
     bitmap.close();
 
-    const pixels = ctx.getImageData(0, 0, spec.width, spec.height).data;
-    const blocked = findBlockedSlots(layout, (x, y) => pixels[(y * spec.width + x) * 4 + 3]);
-    if (blocked.length) return showRegister({ title: "등록할 수 없어요", message: blockedSlotsMessage(blocked) });
+    const slots = readSlots(canvas, layout);
+    const openings = slotProblem(slots);
+    if (openings) return showRegister({ title: "등록할 수 없어요", message: openings });
 
-    pending = { layout, canvas };
-    renderComposite($("register-preview"), { layout, kind: "png" }, [], canvas, { placeholder: "#E9E9E6", scale: 0.4 });
+    pending = { layout, canvas, slots };
+    renderComposite($("register-preview"), { layout, kind: "png", slots }, [], canvas, { placeholder: "#E9E9E6", scale: 0.4 });
     $("register-name").value = defaultFrameName(file.name);
     $("register-layout").textContent = `${spec.label} 프레임으로 등록돼요`;
     $("register-submit").disabled = false;

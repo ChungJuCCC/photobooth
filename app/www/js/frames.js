@@ -3,6 +3,7 @@
 
 import { kv } from "./db.js";
 import { builtinFrames } from "./layouts.js";
+import { readSlots } from "./compose.js";
 
 const CACHE_KEY = "frames";
 
@@ -13,6 +14,7 @@ export class FrameLibrary extends EventTarget {
     this.builtins = builtinFrames(eventName);
     this.registered = []; // { id, name, layout, kind: "png", createdAt, blob }
     this.images = new Map(); // id → ImageBitmap
+    this.slots = new Map(); // id → the cuts read out of that frame's transparency
     this.lastRefresh = 0;
   }
 
@@ -41,8 +43,11 @@ export class FrameLibrary extends EventTarget {
       if (!next.some((f) => f.id === id)) {
         this.images.get(id)?.close?.();
         this.images.delete(id);
+        this.slots.delete(id);
       }
     }
+    // Frames that survived keep their cuts; the list objects are new each time.
+    for (const frame of next) frame.slots ??= this.slots.get(frame.id) ?? undefined;
     this.registered = next;
     this.lastRefresh = Date.now();
     await kv.set(CACHE_KEY, next.map(({ kind, ...rest }) => rest));
@@ -56,7 +61,12 @@ export class FrameLibrary extends EventTarget {
   async imageFor(frame) {
     if (frame.kind !== "png") return null;
     if (!this.images.has(frame.id)) this.images.set(frame.id, await createImageBitmap(frame.blob));
-    return this.images.get(frame.id);
+    const image = this.images.get(frame.id);
+    // Read once per frame id, not once per decode: the previews warm the image
+    // cache long before anyone picks the frame to shoot with.
+    if (!this.slots.has(frame.id)) this.slots.set(frame.id, readSlots(image, frame.layout));
+    frame.slots ??= this.slots.get(frame.id) ?? undefined;
+    return image;
   }
 
   changed() {

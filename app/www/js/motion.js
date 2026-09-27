@@ -12,7 +12,7 @@
 import { ArrayBufferTarget, Muxer } from "../vendor/mp4-muxer.mjs";
 import { centerCrop, drawMirrored } from "./camera.js";
 import { paintPrint } from "./compose.js";
-import { captureSize, LAYOUTS, PHOTO_RATIO, slotRatio } from "./layouts.js";
+import { captureSize, LAYOUTS, PHOTO_RATIO } from "./layouts.js";
 
 export const CLIP_SAMPLE_MS = 100; // 10 fps captured, replayed at 15 → 1.5× speed
 // Forward and back at 15 fps, this lands a hair over three seconds per loop.

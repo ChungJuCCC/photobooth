@@ -7,7 +7,7 @@ import { deviceId as loadDeviceId } from "./db.js";
 import { FrameLibrary } from "./frames.js";
 import { UploadQueue } from "./queue.js";
 import { ClipRecorder, renderMotionPrint } from "./motion.js";
-import { slotRatio } from "./layouts.js";
+import { frameRatio } from "./layouts.js";
 import { setupAdmin } from "./admin.js";
 import qrcode from "../vendor/qrcode.mjs";
 
@@ -150,8 +150,10 @@ async function startSession(frame) {
 
   state.clips?.release();
   state.clips = null;
-  // Viewfinder, takes and clips all take the shape of the chosen frame's cuts.
-  const ratio = slotRatio(state.frame.layout);
+  // Viewfinder, takes and clips all take the shape of the chosen frame's cuts,
+  // which for a registered PNG are read from its own transparency.
+  await library.imageFor(state.frame).catch(() => null);
+  const ratio = frameRatio(state.frame);
   document.documentElement.style.setProperty("--shot-ratio", String(ratio));
   let clips = null;
   try {

@@ -1,6 +1,10 @@
 // Draws the finished photo strip: paper, four photos, then the frame on top.
 
-import { LAYOUTS } from "./layouts.js";
+import { detectSlots, frameSlots, LAYOUTS } from "./layouts.js";
+
+// One mask cell per this many layout pixels: fine enough to place a cut,
+// cheap enough to run on every frame the booth downloads.
+const MASK_STEP = 4;
 
 function drawCover(ctx, source, slot) {
   const sw = source.width;
@@ -29,7 +33,7 @@ export function paintPrint(ctx, frame, sources, frameImage, when = new Date(), p
   ctx.fillStyle = frame.paper ?? "#FFFFFF";
   ctx.fillRect(0, 0, layout.width, layout.height);
 
-  layout.slots.forEach((slot, i) => {
+  frameSlots(frame).forEach((slot, i) => {
     if (sources[i]) drawCover(ctx, sources[i], slot);
     else if (placeholder) {
       ctx.fillStyle = placeholder;
@@ -54,4 +58,23 @@ export function canvasToBlob(canvas, type = "image/jpeg", quality = 0.9) {
   return new Promise((resolve, reject) =>
     canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("encode failed"))), type, quality)
   );
+}
+
+// Where a registered frame's photo slots are, read from its transparency.
+// Returns null when the artwork doesn't have four clear openings.
+export function readSlots(image, layoutKey) {
+  const layout = LAYOUTS[layoutKey];
+  const w = Math.round(layout.width / MASK_STEP);
+  const h = Math.round(layout.height / MASK_STEP);
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  ctx.drawImage(image, 0, 0, w, h);
+  const pixels = ctx.getImageData(0, 0, w, h).data;
+  canvas.width = canvas.height = 0;
+
+  const mask = new Uint8Array(w * h);
+  for (let i = 0; i < mask.length; i++) mask[i] = pixels[i * 4 + 3];
+  return detectSlots(mask, w, h, { width: layout.width, height: layout.height });
 }
