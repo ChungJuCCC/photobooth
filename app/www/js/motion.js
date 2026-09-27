@@ -14,10 +14,12 @@ import { centerCrop, drawMirrored } from "./camera.js";
 import { paintPrint } from "./compose.js";
 import { captureSize, LAYOUTS, PHOTO_RATIO } from "./layouts.js";
 
-// Sampled and replayed at the same rate, so the clip runs at life speed.
-export const CLIP_SAMPLE_MS = 67; // 15 fps
-// Forward and back at 15 fps, this lands a hair over three seconds per loop.
-export const CLIP_FRAMES = 24;
+export const CLIP_SAMPLE_MS = 67; // aim for 15 fps; a busy tablet gets fewer
+// Each cut keeps the last second and a half before its shutter. Frames are
+// timestamped as they are taken, so a tablet that samples slower produces a
+// slower film rather than a sped-up one — the clip always runs at life speed.
+export const CLIP_WINDOW_MS = 1500;
+export const CLIP_MAX_FRAMES = 45; // memory guard if sampling runs fast
 
 // Frames are kept as JPEGs, not as bitmaps: at this size 38 frames × 6 takes
 // would be ~90 MB of raw pixels, which a cheap tablet will not survive. They
@@ -25,8 +27,7 @@ export const CLIP_FRAMES = 24;
 const CLIP_LONG_SIDE = 640;
 const CLIP_QUALITY = 0.82;
 
-const OUTPUT_FPS = 15;
-const FRAME_US = Math.round(1_000_000 / OUTPUT_FPS);
+const NOMINAL_FPS = 15; // what the container advertises; real timing per frame
 const BITRATE = 4_000_000;
 
 // Best size first. H.264 level 4.0 allows the full sheet; level 3.1 caps out
@@ -49,7 +50,7 @@ function encoderConfig({ width, height, codec }) {
     width,
     height,
     bitrate: BITRATE,
-    framerate: OUTPUT_FPS,
+    framerate: NOMINAL_FPS,
     avc: { format: "avc" },
   };
 }
@@ -67,12 +68,16 @@ async function pickSize(layout) {
   return options[options.length - 1];
 }
 
-// Forward then back, so the clip loops without a jump.
-export function pingPong(length) {
-  const order = [];
-  for (let i = 0; i < length; i++) order.push(i);
-  for (let i = length - 2; i > 0; i--) order.push(i);
-  return order;
+// Forward then back, so the clip loops without a jump, with each frame held
+// for as long as it actually took to capture.
+export function pingPong(times) {
+  const gaps = [];
+  for (let i = 0; i < times.length - 1; i++) gaps.push(Math.min(400, Math.max(20, times[i + 1] - times[i])));
+  const average = gaps.length ? gaps.reduce((a, b) => a + b, 0) / gaps.length : 67;
+
+  const steps = times.map((_, i) => ({ index: i, ms: gaps[i] ?? average }));
+  for (let i = times.length - 2; i > 0; i--) steps.push({ index: i, ms: gaps[i - 1] ?? average });
+  return steps;
 }
 
 // ── recording ─────────────────────────────────────────────────────────
@@ -103,8 +108,9 @@ export class ClipRecorder {
     try {
       drawMirrored(this.ctx, this.video, centerCrop(vw, vh, this.ratio), this.canvas.width, this.canvas.height);
       const frame = await new Promise((r) => this.canvas.toBlob(r, "image/jpeg", CLIP_QUALITY));
-      if (frame) this.ring.push(frame);
-      while (this.ring.length > CLIP_FRAMES) this.ring.shift();
+      if (frame) this.ring.push({ blob: frame, at: performance.now() });
+      const cutoff = performance.now() - CLIP_WINDOW_MS;
+      while (this.ring.length > 1 && (this.ring[0].at < cutoff || this.ring.length > CLIP_MAX_FRAMES)) this.ring.shift();
     } catch {
       // A dropped sample only makes the clip a frame shorter.
     } finally {
@@ -141,16 +147,15 @@ export class ClipRecorder {
 
   clipsFor(indexes) {
     const clips = indexes.map((i) => this.clips[i]);
-    return clips.every((clip) => clip && clip.length >= 2) ? clips : null;
+    return clips.every((clip) => clip && clip.length >= 3) ? clips : null;
   }
 }
 
 // ── rendering ─────────────────────────────────────────────────────────
 
-async function drawSequenceFrame(ctx, { frame, frameImage, clips, when, order, step, scale }) {
-  const at = order[step % order.length];
+async function drawSequenceFrame(ctx, { frame, frameImage, clips, when, index, scale }) {
   const sources = await Promise.all(
-    clips.map((clip) => createImageBitmap(clip[Math.min(at, clip.length - 1)]))
+    clips.map((clip) => createImageBitmap(clip[Math.min(index, clip.length - 1)].blob))
   );
   ctx.setTransform(scale, 0, 0, scale, 0, 0);
   paintPrint(ctx, frame, sources, frameImage, when);
@@ -172,12 +177,12 @@ async function encodeWithWebCodecs({ frame, frameImage, clips, when, size }) {
   canvas.height = size.height;
   const ctx = canvas.getContext("2d");
   const scale = size.width / layout.width;
-  const order = pingPong(Math.min(...clips.map((c) => c.length)));
+  const steps = timeline(clips);
 
   const target = new ArrayBufferTarget();
   const muxer = new Muxer({
     target,
-    video: { codec: "avc", width: size.width, height: size.height, frameRate: OUTPUT_FPS },
+    video: { codec: "avc", width: size.width, height: size.height, frameRate: NOMINAL_FPS },
     fastStart: "in-memory",
     firstTimestampBehavior: "offset",
   });
@@ -190,9 +195,13 @@ async function encodeWithWebCodecs({ frame, frameImage, clips, when, size }) {
   encoder.configure(config);
 
   try {
-    for (let step = 0; step < order.length && !failure; step++) {
-      await drawSequenceFrame(ctx, { frame, frameImage, clips, when, order, step, scale });
-      const videoFrame = new VideoFrame(canvas, { timestamp: step * FRAME_US, duration: FRAME_US });
+    let at = 0; // microseconds into the clip
+    for (let step = 0; step < steps.length && !failure; step++) {
+      const { index, ms } = steps[step];
+      await drawSequenceFrame(ctx, { frame, frameImage, clips, when, index, scale });
+      const duration = Math.round(ms * 1000);
+      const videoFrame = new VideoFrame(canvas, { timestamp: at, duration });
+      at += duration;
       try {
         encoder.encode(videoFrame, { keyFrame: step === 0 });
       } finally {
@@ -236,7 +245,7 @@ async function encodeWithRecorder({ frame, frameImage, clips, when, size }) {
   canvas.height = size.height;
   const ctx = canvas.getContext("2d");
   const scale = size.width / layout.width;
-  const order = pingPong(Math.min(...clips.map((c) => c.length)));
+  const steps = timeline(clips);
 
   const stream = canvas.captureStream(0);
   const track = stream.getVideoTracks()[0];
@@ -249,14 +258,15 @@ async function encodeWithRecorder({ frame, frameImage, clips, when, size }) {
   });
 
   recorder.start(1000);
-  const total = order.length; // one full turn; the player loops it
   const t0 = performance.now();
+  let due = 0; // milliseconds into the clip
   try {
-    for (let step = 0; step < total; step++) {
-      await drawSequenceFrame(ctx, { frame, frameImage, clips, when, order, step, scale });
+    for (const { index, ms } of steps) {
+      await drawSequenceFrame(ctx, { frame, frameImage, clips, when, index, scale });
       track.requestFrame?.();
-      const due = t0 + ((step + 1) * 1000) / OUTPUT_FPS - performance.now();
-      if (due > 0) await new Promise((r) => setTimeout(r, due));
+      due += ms;
+      const wait = t0 + due - performance.now();
+      if (wait > 0) await new Promise((r) => setTimeout(r, wait));
     }
     recorder.stop();
     await Promise.race([stopped, new Promise((_, r) => setTimeout(() => r(new Error("encode timeout")), 15_000))]);
@@ -269,7 +279,14 @@ async function encodeWithRecorder({ frame, frameImage, clips, when, size }) {
   return blob.size ? { blob, type } : null;
 }
 
-// clips: four arrays of ImageBitmaps, in slot order.
+// The shared play order: every cut was sampled by the same recorder, so the
+// first one's timing drives all four.
+function timeline(clips) {
+  const length = Math.min(...clips.map((c) => c.length));
+  return pingPong(clips[0].slice(0, length).map((f) => f.at));
+}
+
+// clips: four arrays of captured frames, in slot order.
 export async function renderMotionPrint({ frame, frameImage, clips, when = new Date() }) {
   if (!clips?.length || clips.some((clip) => !clip?.length)) return null;
   const size = await pickSize(frame.layout);
