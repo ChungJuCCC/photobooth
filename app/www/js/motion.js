@@ -14,9 +14,9 @@ import { centerCrop, drawMirrored } from "./camera.js";
 import { paintPrint } from "./compose.js";
 import { captureSize, LAYOUTS, PHOTO_RATIO, slotRatio } from "./layouts.js";
 
-export const CLIP_SAMPLE_MS = 100; // 10 fps captured, replayed at 30 fps → 3× speed
-// Forward and back at 30 fps, this lands a hair under 2.5 seconds per loop.
-export const CLIP_FRAMES = 38;
+export const CLIP_SAMPLE_MS = 100; // 10 fps captured, replayed at 15 → 1.5× speed
+// Forward and back at 15 fps, this lands a hair over three seconds per loop.
+export const CLIP_FRAMES = 24;
 
 // Frames are kept as JPEGs, not as bitmaps: at this size 38 frames × 6 takes
 // would be ~90 MB of raw pixels, which a cheap tablet will not survive. They
@@ -24,9 +24,7 @@ export const CLIP_FRAMES = 38;
 const CLIP_LONG_SIDE = 640;
 const CLIP_QUALITY = 0.82;
 
-// Captured at 10 fps and replayed at 25, so the loop runs 2.5× life speed and
-// lands just under three seconds.
-const OUTPUT_FPS = 25;
+const OUTPUT_FPS = 15;
 const FRAME_US = Math.round(1_000_000 / OUTPUT_FPS);
 const BITRATE = 4_000_000;
 
