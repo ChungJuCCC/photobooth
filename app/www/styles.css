@@ -14,6 +14,8 @@
   --line-strong: #c9c9c5;
   --muted: #5f5f5c;
   --ink: #000000;
+  /* Used for one thing only: a shoot that is about to delete itself. */
+  --warn: #a4161a;
 
   --radius: clamp(18px, 2.2vw, 28px);
   --radius-sm: 14px;
@@ -318,94 +320,159 @@ h2 {
 
 /* ── admin ────────────────────────────────────────────────────────── */
 
-.admin-tabs { display: flex; gap: 8px; }
-.admin-tab {
-  min-height: 52px;
-  padding: 0 24px;
+/* ── 관리자: 사진관 작업대 ────────────────────────────────────────────
+   The backstage screen, read standing up between guests. Frames are a
+   ledger of what the booth offers; shoots are a contact sheet of prints
+   waiting to be kept or thrown out. Red appears in one place only: a shoot
+   that is about to delete itself. */
+
+.screen[data-screen="admin"] { gap: clamp(14px, 2vh, 22px); }
+
+.desk-head {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: var(--gap);
+  padding-bottom: clamp(12px, 1.6vh, 20px);
+  border-bottom: 2px solid var(--ink);
+}
+
+.desk-title h1 { font-size: clamp(24px, 3vw, 36px); }
+.desk-now {
+  display: flex;
+  gap: 14px;
+  font-size: var(--t-small);
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.desk-tabs { display: flex; gap: 10px; justify-self: center; }
+.desk-tab {
+  min-height: 54px;
+  padding: 0 22px;
   border-radius: 999px;
   font-size: var(--t-small);
   font-weight: 600;
   color: var(--muted);
-  background: var(--paper);
-  box-shadow: inset 0 0 0 1px var(--line);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
 }
-.admin-tab.on { color: var(--paper); background: var(--ink); box-shadow: none; }
+.desk-tab b { margin-left: 8px; font-variant-numeric: tabular-nums; opacity: 0.7; }
+.desk-tab.on { color: var(--paper); background: var(--ink); box-shadow: none; }
 
-.admin-pane { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: var(--gap); }
+.admin-pane { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: clamp(12px, 1.8vh, 20px); }
 .admin-pane[hidden] { display: none; }
 
+.desk-bar { display: flex; align-items: center; justify-content: space-between; gap: var(--gap); }
+.desk-note { font-size: var(--t-small); color: var(--muted); max-width: 58ch; text-wrap: pretty; }
+.desk-actions { display: flex; gap: 10px; flex: none; }
+.desk-bar .button { min-height: 54px; padding: 0 24px; font-size: var(--t-small); flex: none; }
+/* Red means photos are about to be lost — the expiry clock and the button
+   that throws prints away. Nothing else on this screen uses it. */
+.button.danger { color: var(--warn); border-color: var(--warn); }
+.button.danger:disabled { color: var(--muted); border-color: var(--line-strong); }
+.button.quiet { border-color: var(--line-strong); color: var(--muted); }
+
+.admin-message { font-size: var(--t-small); font-weight: 600; color: var(--warn); }
+
+/* ── 프레임: 장부 ─────────────────────────────────────────────────── */
+
+.ledger { list-style: none; overflow-y: auto; flex: 1; min-height: 0; }
+.ledger li {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: var(--gap);
+  padding: clamp(12px, 1.8vh, 20px) 4px;
+  border-bottom: 1px solid var(--line);
+}
+.ledger li:first-child { border-top: 1px solid var(--line); }
+.ledger canvas {
+  height: clamp(76px, 11vh, 112px);
+  width: auto;
+  background: var(--paper);
+  box-shadow: 0 0 0 1px var(--line), 0 6px 14px -10px rgba(0, 0, 0, 0.5);
+}
+.ledger .meta { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.ledger .meta strong { font-size: var(--t-h2); font-weight: 600; letter-spacing: -0.015em; }
+.ledger .meta span { font-size: var(--t-small); color: var(--muted); }
+.ledger li.hidden-frame canvas { opacity: 0.35; }
+.ledger li.hidden-frame .meta strong { color: var(--muted); }
+
 .row-actions { display: flex; gap: 8px; flex: none; }
-.row-actions .button { min-height: 52px; padding: 0 18px; font-size: var(--t-small); }
+.row-actions .button { min-height: 54px; padding: 0 18px; font-size: var(--t-small); }
 .row-actions .button.on { background: var(--ink); color: var(--paper); border-color: var(--ink); }
-.row-actions .button.danger { color: var(--muted); border-color: var(--line-strong); }
 
-.admin-spec { font-size: var(--t-small); color: var(--muted); margin-top: -8px; }
+.admin-empty { padding: clamp(28px, 6vh, 56px) 4px; color: var(--muted); border-bottom: 0 !important; }
 
-/* ── 찍은 사진 ─────────────────────────────────────────────────────── */
+/* ── 찍은 사진: 밀착인화 ──────────────────────────────────────────── */
 
-.shots-bar { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--gap); }
-.shots-actions { display: flex; gap: 8px; flex: none; }
-.shots-actions .button { min-height: 52px; padding: 0 20px; font-size: var(--t-small); }
-
-.shot-list {
+.sheet {
   list-style: none;
   overflow-y: auto;
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(clamp(220px, 24vw, 300px), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(clamp(150px, 15vw, 190px), 1fr));
   align-content: start;
-  gap: var(--gap);
-  padding: 4px;
+  gap: clamp(16px, 2.4vw, 30px);
+  padding: 6px 4px 4px;
 }
 
-.shot-item {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 12px;
-  background: var(--paper);
-  border-radius: var(--radius-sm);
-  box-shadow: 0 0 0 1px var(--line);
-}
-.shot-item.selected { box-shadow: 0 0 0 3px var(--ink); }
+.print-cell { display: flex; flex-direction: column; gap: 8px; }
 
 .shot-pick {
+  position: relative;
   display: block;
   width: 100%;
-  /* A fixed height rather than the print's tall shape, so a screenful of
-     shoots is a screenful rather than one card. */
-  height: clamp(150px, 20vh, 230px);
-  background: var(--surface);
-  border-radius: 10px;
-  overflow: hidden;
-  padding: 0;
+  height: clamp(130px, 19vh, 200px);
+  padding: 7px;
+  background: var(--paper);
+  box-shadow: 0 0 0 1px var(--line), 0 8px 18px -14px rgba(0, 0, 0, 0.6);
+  transition: box-shadow 120ms ease-out;
 }
 .shot-pick img { width: 100%; height: 100%; object-fit: contain; display: block; }
-.shot-pick:active { opacity: 0.6; }
+.shot-pick.empty { background: var(--surface); }
+.print-cell.selected .shot-pick { box-shadow: 0 0 0 3px var(--ink); }
 
-.shot-item .meta { display: flex; flex-direction: column; }
-.shot-item .meta span { font-size: var(--t-small); color: var(--muted); }
-.shot-item .button { min-height: 52px; font-size: var(--t-small); }
-.shot-item .button.on { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+/* The one loud thing on this screen: a stamp across the corner of a print
+   that has been kept. */
+.stamp {
+  position: absolute;
+  top: 12px;
+  left: -6px;
+  padding: 3px 12px;
+  font-size: clamp(12px, 1.4vw, 15px);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--paper);
+  background: var(--ink);
+  transform: rotate(-7deg);
+  pointer-events: none;
+}
+.print-cell.just-kept .stamp { animation: stamped 260ms cubic-bezier(0.2, 0.9, 0.3, 1); }
+@keyframes stamped {
+  0% { opacity: 0; transform: rotate(-7deg) scale(1.5); }
+  60% { opacity: 1; transform: rotate(-7deg) scale(0.96); }
+  100% { opacity: 1; transform: rotate(-7deg) scale(1); }
+}
 
-/* a checkbox in the register sheet */
-.check { display: flex; align-items: flex-start; gap: 12px; cursor: pointer; }
-.check input { width: 28px; height: 28px; margin-top: 4px; accent-color: var(--ink); flex: none; }
-.check span { display: flex; flex-direction: column; font-size: var(--t-body); }
-.check small { font-size: var(--t-small); color: var(--muted); }
-.admin-version { font-size: var(--t-small); color: var(--muted); font-variant-numeric: tabular-nums; }
-.admin-message { font-size: var(--t-small); font-weight: 600; }
+.print-when {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: var(--t-small);
+  font-variant-numeric: tabular-nums;
+}
+.print-when span { color: var(--muted); }
+.print-when .soon { color: var(--warn); font-weight: 600; }
+/* The stamp says whether a print is kept, so the button only offers the
+   move, quietly. */
+.print-cell .button { min-height: 50px; font-size: var(--t-small); }
 
-.admin-list { list-style: none; overflow-y: auto; flex: 1; min-height: 0; border-top: 1px solid var(--line); background: var(--paper); border-radius: var(--radius-sm); }
-.admin-list li:first-child { border-top: 0; }
-.admin-list li { display: flex; align-items: center; gap: var(--gap); padding: 16px 0; border-bottom: 1px solid var(--line); }
-.admin-list canvas { height: 96px; width: auto; box-shadow: 0 0 0 1px var(--line); flex: none; }
-.admin-list .meta { flex: 1; display: flex; flex-direction: column; }
-.admin-list .meta span { font-size: var(--t-small); color: var(--muted); }
-.admin-list li.hidden-frame canvas, .admin-list li.hidden-frame .meta { opacity: 0.4; }
-.admin-list .button { min-height: 52px; font-size: var(--t-small); }
-.admin-empty { padding: 24px 0; color: var(--muted); }
+@media (prefers-reduced-motion: reduce) {
+  .print-cell.just-kept .stamp { animation: none; }
+}
 
 /* ── dialogs ──────────────────────────────────────────────────────── */
 

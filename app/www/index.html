@@ -102,36 +102,41 @@
 
     <!-- 관리자: 프레임 관리 -->
     <section class="screen" data-screen="admin" hidden>
-      <header class="head row">
-        <div>
-          <h1>관리자</h1>
-          <p class="lede">프레임과 찍은 사진을 여기서 관리해요. 등록한 프레임은 모든 태블릿에 함께 나타나요</p>
-          <p class="admin-version" id="app-version"></p>
+      <header class="desk-head">
+        <div class="desk-title">
+          <h1>작업대</h1>
+          <p class="desk-now"><span id="desk-now"></span><span class="admin-version" id="app-version"></span></p>
         </div>
-        <button class="button secondary" id="admin-close" type="button">닫기</button>
+        <div class="desk-tabs" id="admin-tabs" role="tablist">
+          <button class="desk-tab on" type="button" data-tab="frames" role="tab">
+            프레임<b id="count-frames">·</b>
+          </button>
+          <button class="desk-tab" type="button" data-tab="shots" role="tab">
+            찍은 사진<b id="count-shots">·</b>
+          </button>
+        </div>
+        <button class="button secondary" id="admin-close" type="button">부스로 돌아가기</button>
       </header>
-      <div class="admin-tabs" id="admin-tabs" role="tablist">
-        <button class="admin-tab on" type="button" data-tab="frames" role="tab">프레임</button>
-        <button class="admin-tab" type="button" data-tab="shots" role="tab">찍은 사진</button>
-      </div>
 
       <div class="admin-pane" data-tab="frames">
-        <button class="button primary" id="admin-add" type="button">갤러리에서 프레임 불러오기</button>
-        <p class="admin-spec">세로 4컷은 591×1772, 바둑판은 1080×1920 비율의 PNG로 만들어주세요. 사진 자리 4칸만 완전히 투명하게 비워두면 위치와 크기는 자유예요 — 앱이 알아서 찾아냅니다.</p>
+        <div class="desk-bar">
+          <p class="desk-note">세로 4컷 591×1772, 바둑판 1080×1920 비율의 PNG. 사진 자리 4칸만 투명하게 비우면 위치와 크기는 자유예요.</p>
+          <button class="button primary" id="admin-add" type="button">프레임 불러오기</button>
+        </div>
         <p class="admin-message" id="admin-message" hidden></p>
-        <ul class="admin-list" id="admin-list"></ul>
+        <ul class="ledger" id="admin-list"></ul>
       </div>
 
       <div class="admin-pane" data-tab="shots" hidden>
-        <div class="shots-bar">
-          <p class="admin-spec" id="shots-note">찍은 사진은 하루 뒤에 자동으로 지워져요. 남기고 싶은 건 보관을 켜두세요.</p>
-          <div class="shots-actions">
-            <button class="button secondary" id="shots-refresh" type="button">새로고침</button>
-            <button class="button secondary" id="shots-delete" type="button" disabled>선택 삭제</button>
+        <div class="desk-bar">
+          <p class="desk-note">하루가 지나면 스스로 지워집니다. 남길 사진은 보관을 찍어두세요.</p>
+          <div class="desk-actions">
+            <button class="button secondary" id="shots-refresh" type="button">다시 읽기</button>
+            <button class="button secondary danger" id="shots-delete" type="button" disabled>고른 사진 지우기</button>
           </div>
         </div>
         <p class="admin-message" id="shots-message" hidden></p>
-        <ul class="shot-list" id="shot-list"></ul>
+        <ul class="sheet" id="shot-list"></ul>
       </div>
     </section>
   </div>

@@ -15,7 +15,18 @@ export function setupAdmin({ api, library, show, goHome, toast }) {
   let pending = null; // { layout, canvas } of the PNG being registered
 
   const version = $("app-version");
-  if (version) version.textContent = `버전 ${window.BOOTH_CONFIG?.version || "개발"}`;
+  if (version) version.textContent = `포토부스 버전 ${window.BOOTH_CONFIG?.version || "개발"}`;
+
+  function setCount(id, n) {
+    const el = $(id);
+    if (el) el.textContent = n == null ? "·" : n;
+  }
+
+  function stampNow() {
+    const d = new Date();
+    const pad = (n) => String(n).padStart(2, "0");
+    $("desk-now").textContent = `${d.getMonth() + 1}월 ${d.getDate()}일 ${pad(d.getHours())}:${pad(d.getMinutes())} 기준`;
+  }
 
   // ── entry gesture ────────────────────────────────────────────────────
   // A finger never holds perfectly still for three seconds, and Android
@@ -151,11 +162,13 @@ export function setupAdmin({ api, library, show, goHome, toast }) {
     const list = $("admin-list");
     try {
       const { frames } = await api.manageFrames("list", adminPin);
+      stampNow();
+      setCount("count-frames", frames.length);
       list.replaceChildren();
       if (!frames.length) {
         const empty = document.createElement("li");
         empty.className = "admin-empty";
-        empty.textContent = "아직 등록한 프레임이 없어요. 지금은 기본 흑백 프레임만 나타나요.";
+        empty.textContent = "등록한 프레임이 없습니다. 지금 손님에게는 기본 흑백 프레임만 보여요.";
         list.append(empty);
         return;
       }
@@ -186,7 +199,10 @@ export function setupAdmin({ api, library, show, goHome, toast }) {
     const name = document.createElement("strong");
     name.textContent = f.name;
     const detail = document.createElement("span");
-    detail.textContent = f.isActive ? LAYOUTS[f.layout].label : `${LAYOUTS[f.layout].label}, 숨긴 프레임`;
+    const marks = [LAYOUTS[f.layout].label];
+    if (f.hasPeople) marks.push("칸 안에 사람 있음");
+    if (!f.isActive) marks.push("손님에게 안 보임");
+    detail.textContent = marks.join(" · ");
     meta.append(name, detail);
 
     const act = (label, run) => {
@@ -207,24 +223,25 @@ export function setupAdmin({ api, library, show, goHome, toast }) {
       return button;
     };
 
-    const people = act(f.hasPeople ? "인물 있음" : "인물 없음", async () => {
+    const people = act(f.hasPeople ? "사람 있음" : "사람 없음", async () => {
       await api.manageFrames("people", adminPin, { frameId: f.id, hasPeople: !f.hasPeople });
-      toast(f.hasPeople ? "촬영 중에 인물을 안 보여줘요" : "촬영 중에 인물이 같이 보여요");
+      toast(f.hasPeople ? "찍을 때 사람을 안 보여줍니다" : "찍을 때 사람이 같이 보입니다");
     });
     people.classList.toggle("on", f.hasPeople);
 
-    const visible = act(f.isActive ? "숨기기" : "다시 보이기", async () => {
+    const visible = act(f.isActive ? "숨기기" : "보이기", async () => {
       await api.manageFrames(f.isActive ? "hide" : "show", adminPin, { frameId: f.id });
-      toast(f.isActive ? "프레임을 숨겼어요" : "프레임을 다시 보이게 했어요");
+      toast(f.isActive ? "손님에게 숨겼습니다" : "손님에게 다시 보입니다");
     });
 
-    const remove = act("삭제", async () => {
-      if (!confirm(`"${f.name}" 프레임을 지울까요? 되돌릴 수 없어요.`)) throw new Cancelled();
+    const remove = act("지우기", async () => {
+      if (!confirm(`"${f.name}" 프레임을 지웁니다. 되돌릴 수 없습니다.`)) throw new Cancelled();
       await api.manageFrames("delete-frame", adminPin, { frameId: f.id });
       await library.refresh().catch(() => {});
-      toast("프레임을 지웠어요");
+      toast("프레임을 지웠습니다");
     });
-    remove.classList.add("danger");
+    // Red is reserved for losing someone's photos; a frame is only a design.
+    remove.classList.add("quiet");
 
     const actions = document.createElement("div");
     actions.className = "row-actions";
@@ -253,10 +270,11 @@ export function setupAdmin({ api, library, show, goHome, toast }) {
   // ── 찍은 사진 ────────────────────────────────────────────────────────
 
   const picked = new Set();
+  let justKept = null; // the print whose stamp should land, once
 
-  for (const tab of document.querySelectorAll(".admin-tab")) {
+  for (const tab of document.querySelectorAll(".desk-tab")) {
     tab.addEventListener("click", () => {
-      for (const other of document.querySelectorAll(".admin-tab")) other.classList.toggle("on", other === tab);
+      for (const other of document.querySelectorAll(".desk-tab")) other.classList.toggle("on", other === tab);
       for (const pane of document.querySelectorAll(".admin-pane")) pane.hidden = pane.dataset.tab !== tab.dataset.tab;
       if (tab.dataset.tab === "shots") loadShots();
     });
@@ -267,16 +285,16 @@ export function setupAdmin({ api, library, show, goHome, toast }) {
   $("shots-delete").addEventListener("click", async () => {
     const ids = [...picked];
     if (!ids.length) return;
-    if (!confirm(`사진 ${ids.length}개를 지울까요? 손님도 더는 받을 수 없어요.`)) return;
+    if (!confirm(`사진 ${ids.length}장을 지웁니다. 손님도 더는 받을 수 없습니다.`)) return;
     const button = $("shots-delete");
     button.disabled = true;
     try {
       await api.manageFrames("delete-sessions", adminPin, { sessionIds: ids });
-      toast(`사진 ${ids.length}개를 지웠어요`);
+      toast(`사진 ${ids.length}장을 지웠습니다`);
       picked.clear();
       await loadShots();
     } catch (err) {
-      shotsMessage(err instanceof ApiError && err.isNetwork ? "인터넷 연결을 확인해주세요." : "지우지 못했어요.");
+      shotsMessage(err instanceof ApiError && err.isNetwork ? "인터넷 연결을 확인해주세요." : "지우지 못했습니다. 다시 시도해주세요.");
       button.disabled = false;
     }
   });
@@ -288,13 +306,25 @@ export function setupAdmin({ api, library, show, goHome, toast }) {
   }
 
   function updateShotsBar() {
-    $("shots-delete").disabled = picked.size === 0;
-    $("shots-delete").textContent = picked.size ? `선택 삭제 (${picked.size})` : "선택 삭제";
+    const button = $("shots-delete");
+    button.disabled = picked.size === 0;
+    button.textContent = picked.size ? `고른 사진 ${picked.size}장 지우기` : "고른 사진 지우기";
   }
+
+  const pad = (n) => String(n).padStart(2, "0");
 
   function shotWhen(iso) {
     const d = new Date(iso);
-    return `${d.getMonth() + 1}월 ${d.getDate()}일 ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+    return `${d.getMonth() + 1}.${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+
+  // How long this print has before it deletes itself.
+  function shotLeft(iso) {
+    const ms = Date.parse(iso) - Date.now();
+    if (ms <= 0) return { text: "곧 사라짐", soon: true };
+    const hours = Math.floor(ms / 3_600_000);
+    const minutes = Math.floor((ms % 3_600_000) / 60_000);
+    return { text: hours > 0 ? `${hours}시간 뒤` : `${minutes}분 뒤`, soon: hours < 2 };
   }
 
   async function loadShots() {
@@ -302,13 +332,15 @@ export function setupAdmin({ api, library, show, goHome, toast }) {
     const list = $("shot-list");
     try {
       const { sessions } = await api.manageFrames("sessions", adminPin);
+      stampNow();
+      setCount("count-shots", sessions.length);
       picked.clear();
       updateShotsBar();
       list.replaceChildren();
       if (!sessions.length) {
         const empty = document.createElement("li");
         empty.className = "admin-empty";
-        empty.textContent = "아직 찍은 사진이 없어요.";
+        empty.textContent = "아직 찍은 사진이 없습니다. 손님이 찍으면 여기에 쌓입니다.";
         list.append(empty);
         return;
       }
@@ -320,12 +352,14 @@ export function setupAdmin({ api, library, show, goHome, toast }) {
 
   function shotRow(session) {
     const li = document.createElement("li");
-    li.className = "shot-item";
+    li.className = "print-cell";
+    if (session.id === justKept) li.classList.add("just-kept");
 
     const select = document.createElement("button");
     select.type = "button";
     select.className = "shot-pick";
     select.setAttribute("aria-pressed", "false");
+    select.setAttribute("aria-label", `${shotWhen(session.createdAt)}에 찍은 사진 고르기`);
     if (session.thumbUrl) {
       const img = document.createElement("img");
       img.src = session.thumbUrl;
@@ -333,6 +367,12 @@ export function setupAdmin({ api, library, show, goHome, toast }) {
       select.append(img);
     } else {
       select.classList.add("empty");
+    }
+    if (session.keep) {
+      const stamp = document.createElement("span");
+      stamp.className = "stamp";
+      stamp.textContent = "보관";
+      select.append(stamp);
     }
     select.addEventListener("click", () => {
       const on = !picked.has(session.id);
@@ -343,28 +383,33 @@ export function setupAdmin({ api, library, show, goHome, toast }) {
       updateShotsBar();
     });
 
-    const meta = document.createElement("div");
-    meta.className = "meta";
-    const when = document.createElement("strong");
-    when.textContent = shotWhen(session.createdAt);
-    const detail = document.createElement("span");
-    detail.textContent = session.keep
-      ? "보관 중 — 자동 삭제 안 함"
-      : session.expiresAt
-        ? `${shotWhen(session.expiresAt)}에 삭제`
-        : "올라가는 중";
-    meta.append(when, detail);
+    // Taken at, and what happens to it next.
+    const when = document.createElement("p");
+    when.className = "print-when";
+    const taken = document.createElement("strong");
+    taken.textContent = shotWhen(session.createdAt);
+    const fate = document.createElement("span");
+    if (session.keep) {
+      fate.textContent = "계속 보관";
+    } else if (session.expiresAt) {
+      const left = shotLeft(session.expiresAt);
+      fate.textContent = left.text;
+      fate.classList.toggle("soon", left.soon);
+    } else {
+      fate.textContent = "올라가는 중";
+    }
+    when.append(taken, fate);
 
     const keep = document.createElement("button");
     keep.type = "button";
-    keep.className = "button secondary";
-    keep.classList.toggle("on", session.keep);
-    keep.textContent = session.keep ? "보관 중" : "보관하기";
+    keep.className = "button secondary quiet";
+    keep.textContent = session.keep ? "보관 풀기" : "보관하기";
     keep.addEventListener("click", async () => {
       keep.disabled = true;
       try {
         await api.manageFrames("keep", adminPin, { sessionId: session.id, keep: !session.keep });
-        toast(session.keep ? "보관을 해제했어요" : "이 사진은 계속 보관해요");
+        justKept = session.keep ? null : session.id;
+        toast(session.keep ? "보관을 풀었습니다" : "이 사진은 계속 보관합니다");
         await loadShots();
       } catch (err) {
         handleAdminError(err);
@@ -372,7 +417,7 @@ export function setupAdmin({ api, library, show, goHome, toast }) {
       }
     });
 
-    li.append(select, meta, keep);
+    li.append(select, when, keep);
     return li;
   }
 
