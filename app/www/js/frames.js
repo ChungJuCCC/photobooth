@@ -37,7 +37,15 @@ export class FrameLibrary extends EventTarget {
         if (!res.ok) throw new Error(`frame download ${res.status}`);
         blob = await res.blob();
       }
-      next.push({ id: remote.id, name: remote.name, layout: remote.layout, createdAt: remote.createdAt, blob, kind: "png" });
+      next.push({
+        id: remote.id,
+        name: remote.name,
+        layout: remote.layout,
+        hasPeople: remote.hasPeople === true,
+        createdAt: remote.createdAt,
+        blob,
+        kind: "png",
+      });
     }
     for (const id of this.images.keys()) {
       if (!next.some((f) => f.id === id)) {

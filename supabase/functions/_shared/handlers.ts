@@ -39,6 +39,8 @@ export interface Db {
   getFrame(id: string): Promise<FrameRow | null>;
   insertFrame(row: FrameRow): Promise<void>;
   updateFrame(id: string, patch: Partial<FrameRow>): Promise<void>;
+  deleteFrame(id: string): Promise<void>;
+  listRecentSessions(limit: number): Promise<SessionRow[]>;
   checkAdminPin(pin: string): Promise<PinCheck>;
 }
 
@@ -58,6 +60,9 @@ export type Deps = {
   now: () => Date;
   newId: () => string;
 };
+
+// How many recent shoots the admin screen lists at once.
+export const ADMIN_SESSION_LIMIT = 60;
 
 export const SESSIONS_BUCKET = "sessions";
 export const FRAMES_BUCKET = "frames";
@@ -159,6 +164,7 @@ export function handleCreateUpload(req: Request, deps: Deps): Promise<Response> 
         uploaded_at: null,
         expires_at: null,
         deleted_at: null,
+        keep: false,
       });
     }
 
@@ -239,6 +245,7 @@ function frameDto(row: FrameRow, deps: Deps) {
     layout: row.layout,
     url: deps.storage.publicUrl(FRAMES_BUCKET, row.path),
     isActive: row.is_active,
+    hasPeople: row.has_people,
     createdAt: row.created_at,
   };
 }
@@ -313,6 +320,7 @@ export function handleManageFrames(req: Request, deps: Deps): Promise<Response> 
           layout,
           path,
           is_active: true,
+          has_people: body.hasPeople === true,
           created_at: deps.now().toISOString(),
         };
         await deps.db.insertFrame(row);
@@ -327,6 +335,79 @@ export function handleManageFrames(req: Request, deps: Deps): Promise<Response> 
         if (!row) return fail(404, "frame_not_found");
         await deps.db.updateFrame(frameId, { is_active: action === "show" });
         return json(200, { status: "ok" });
+      }
+
+      case "people": {
+        const { frameId, hasPeople } = body;
+        if (!isUuid(frameId)) return fail(400, "invalid_frame_id");
+        if (typeof hasPeople !== "boolean") return fail(400, "invalid_body");
+        if (!(await deps.db.getFrame(frameId))) return fail(404, "frame_not_found");
+        await deps.db.updateFrame(frameId, { has_people: hasPeople });
+        return json(200, { status: "ok" });
+      }
+
+      case "delete-frame": {
+        const { frameId } = body;
+        if (!isUuid(frameId)) return fail(400, "invalid_frame_id");
+        const row = await deps.db.getFrame(frameId);
+        if (!row) return fail(404, "frame_not_found");
+        await deps.storage.remove(FRAMES_BUCKET, [row.path]);
+        await deps.db.deleteFrame(frameId);
+        return json(200, { status: "ok" });
+      }
+
+      // ── the shoots themselves ────────────────────────────────────────
+      case "sessions": {
+        const rows = await deps.db.listRecentSessions(ADMIN_SESSION_LIMIT);
+        const sessions = [];
+        for (const row of rows) {
+          sessions.push({
+            id: row.id,
+            createdAt: row.created_at,
+            expiresAt: row.expires_at,
+            keep: row.keep,
+            state: sessionState(row.id, row, deps.now()),
+            thumbUrl: row.uploaded_at
+              ? await deps.storage.createSignedUrl(SESSIONS_BUCKET, row.photo_path, SIGNED_DOWNLOAD_SECONDS)
+              : null,
+          });
+        }
+        return json(200, { sessions });
+      }
+
+      case "keep": {
+        const { sessionId, keep } = body;
+        if (!isUuid(sessionId)) return fail(400, "invalid_session_id");
+        if (typeof keep !== "boolean") return fail(400, "invalid_body");
+        const row = await deps.db.getSession(sessionId);
+        if (!row || row.deleted_at) return fail(404, "session_not_found");
+        // Keeping drops the expiry; letting go gives the usual window from now.
+        await deps.db.updateSession(sessionId, {
+          keep,
+          expires_at: keep ? null : expiresAtFrom(deps.now()).toISOString(),
+        });
+        return json(200, { status: "ok" });
+      }
+
+      case "delete-sessions": {
+        const { sessionIds } = body;
+        if (!Array.isArray(sessionIds) || sessionIds.length === 0 || sessionIds.length > ADMIN_SESSION_LIMIT) {
+          return fail(400, "invalid_body");
+        }
+        if (!sessionIds.every((id: unknown) => typeof id === "string" && isUuid(id))) {
+          return fail(400, "invalid_session_id");
+        }
+        const now = deps.now().toISOString();
+        let deleted = 0;
+        for (const id of sessionIds) {
+          const row = await deps.db.getSession(id);
+          if (!row || row.deleted_at) continue;
+          const paths = [row.photo_path, row.video_path].filter((path): path is string => !!path);
+          if (paths.length) await deps.storage.remove(SESSIONS_BUCKET, paths);
+          await deps.db.updateSession(id, { deleted_at: now, keep: false });
+          deleted++;
+        }
+        return json(200, { status: "ok", deleted });
       }
 
       default:

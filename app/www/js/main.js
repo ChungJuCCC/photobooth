@@ -218,7 +218,8 @@ async function startSession(frame) {
 // photo ends up in is decided later, by the order the guests pick them.
 function showCutArtwork(frame, image, shotIndex) {
   const canvas = $("camera-overlay");
-  const slots = frame.kind === "png" && frame.slots ? frame.slots : null;
+  // Only frames registered as having someone in their cuts show them here.
+  const slots = frame.kind === "png" && frame.hasPeople && frame.slots ? frame.slots : null;
   const slot = slots?.[shotIndex % slots.length];
   if (!image || !slot) return hideCutArtwork();
 

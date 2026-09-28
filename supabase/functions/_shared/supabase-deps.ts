@@ -68,6 +68,19 @@ export function supabaseDeps(): Deps {
     async updateFrame(id, patch) {
       must(await client.from("frames").update(patch).eq("id", id));
     },
+    async deleteFrame(id) {
+      must(await client.from("frames").delete().eq("id", id));
+    },
+    async listRecentSessions(limit) {
+      return must(
+        await client
+          .from("sessions")
+          .select("*")
+          .is("deleted_at", null)
+          .order("created_at", { ascending: false })
+          .limit(limit),
+      ) as SessionRow[];
+    },
     async checkAdminPin(pin) {
       const data = must(await client.rpc("check_admin_pin", { input_pin: pin })) as Record<string, unknown>;
       switch (data.result) {

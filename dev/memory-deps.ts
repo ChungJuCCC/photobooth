@@ -52,6 +52,7 @@ export function createMemoryDeps(options: MemoryOptions) {
       return [...sessions.values()]
         .filter((s) =>
           !s.deleted_at &&
+          !s.keep &&
           ((s.expires_at && Date.parse(s.expires_at) <= t) || (!s.uploaded_at && Date.parse(s.created_at) < giveUp))
         )
         .slice(0, limit)
@@ -73,6 +74,16 @@ export function createMemoryDeps(options: MemoryOptions) {
     async updateFrame(id, patch) {
       const row = frames.get(id);
       if (row) frames.set(id, { ...row, ...patch });
+    },
+    async deleteFrame(id) {
+      frames.delete(id);
+    },
+    async listRecentSessions(limit) {
+      return [...sessions.values()]
+        .filter((s) => !s.deleted_at)
+        .sort((a, b) => b.created_at.localeCompare(a.created_at))
+        .slice(0, limit)
+        .map((s) => ({ ...s }));
     },
     async checkAdminPin(pin): Promise<PinCheck> {
       const t = now().getTime();

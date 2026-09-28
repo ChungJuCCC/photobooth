@@ -27,6 +27,7 @@ export type SessionRow = {
   uploaded_at: string | null;
   expires_at: string | null;
   deleted_at: string | null;
+  keep: boolean;
 };
 
 export type FrameRow = {
@@ -35,6 +36,7 @@ export type FrameRow = {
   layout: LayoutKey;
   path: string;
   is_active: boolean;
+  has_people: boolean;
   created_at: string;
 };
 
@@ -66,7 +68,9 @@ export function isLayout(value: unknown): value is LayoutKey {
 export function sessionState(id: string, row: SessionRow | null, now: Date): SessionState {
   if (!isUuid(id)) return "invalid";
   if (row?.deleted_at) return "expired";
-  if (!row || !row.uploaded_at || !row.expires_at) return "pending";
+  if (!row || !row.uploaded_at) return "pending";
+  // A shoot the admin kept has no expiry and stays ready.
+  if (!row.expires_at) return "ready";
   return now.getTime() < Date.parse(row.expires_at) ? "ready" : "expired";
 }
 

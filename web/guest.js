@@ -62,8 +62,14 @@ export function remainingText(ms) {
 }
 
 function tickCountdown() {
+  // A shoot the booth's owner kept has no expiry: no clock, no warning.
+  if (!view.expiresAt) {
+    $("countdown").hidden = true;
+    return;
+  }
   const left = view.expiresAt - Date.now();
   if (left <= 0) return show("expired");
+  $("countdown").hidden = false;
   $("countdown").innerHTML = remainingText(left);
 }
 
@@ -102,7 +108,7 @@ async function load() {
     releaseFiles();
     view.photo = files.photo;
     view.video = files.video;
-    view.expiresAt = Date.parse(session.expiresAt);
+    view.expiresAt = session.expiresAt ? Date.parse(session.expiresAt) : 0;
 
     $("photo").src = view.photo.url;
     $("video-figure").hidden = !view.video;
@@ -112,7 +118,7 @@ async function load() {
 
     show("ready");
     tickCountdown();
-    view.countdownTimer = setInterval(tickCountdown, COUNTDOWN_TICK_MS);
+    if (view.expiresAt) view.countdownTimer = setInterval(tickCountdown, COUNTDOWN_TICK_MS);
   } catch (err) {
     console.warn(err);
     show("error");
@@ -137,7 +143,7 @@ async function downloadFiles(session) {
 // ── saving ──────────────────────────────────────────────────────────────
 
 function fileName(kind, type) {
-  const d = new Date(view.expiresAt - 24 * 3600_000);
+  const d = view.expiresAt ? new Date(view.expiresAt - 24 * 3600_000) : new Date();
   const pad = (n) => String(n).padStart(2, "0");
   const stamp = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}`;
   const ext = kind === "photo" ? "jpg" : type?.includes("webm") ? "webm" : "mp4";

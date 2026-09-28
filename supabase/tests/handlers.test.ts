@@ -60,6 +60,7 @@ describe("sessionState", () => {
     uploaded_at: null,
     expires_at: null,
     deleted_at: null,
+    keep: false,
   };
   const at = (ms: number) => new Date(START + ms);
 
@@ -328,5 +329,75 @@ describe("handlers", () => {
     const all = await body(await admin({ action: "list" }));
     assert.equal(all.frames.length, 1);
     assert.equal(all.frames[0].isActive, false);
+  });
+
+  test("the admin screen lists shoots, keeps some, and deletes others", async () => {
+    const admin = (payload: Record<string, unknown>) =>
+      handleManageFrames(post("manage-frames", { pin: "4827", ...payload }), mem.deps);
+
+    const first = await shoot();
+    await uploadAndComplete(first.id, first.data);
+    const second = await shoot();
+    await uploadAndComplete(second.id, second.data);
+
+    let { sessions } = await body(await admin({ action: "sessions" }));
+    assert.equal(sessions.length, 2);
+    assert.equal(sessions[0].state, "ready");
+    assert.ok(sessions[0].thumbUrl, "a thumbnail to recognise the shoot by");
+    assert.equal(sessions[0].keep, false);
+
+    // Keeping one drops its expiry; cleanup then leaves it alone forever.
+    assert.equal((await admin({ action: "keep", sessionId: first.id, keep: true })).status, 200);
+    clock = START + RETENTION_MS * 3;
+    const purge = await handleCleanup(post("cleanup", {}, { "x-cleanup-token": "dev-cleanup-token" }), mem.deps);
+    assert.deepEqual(await body(purge), { status: "ok", purged: 1 });
+    assert.equal(mem.sessions.get(first.id)?.deleted_at, null);
+    assert.ok(mem.sessions.get(second.id)?.deleted_at);
+
+    // The kept one still opens on the guest's phone long after the usual window
+    const state = await body(await handleGetSession(get("get-session", `?id=${first.id}`), mem.deps));
+    assert.equal(state.state, "ready");
+    assert.equal(state.expiresAt, null);
+
+    // Deleting by hand takes the files with it
+    assert.equal(mem.objects.size, 2, "the kept shoot's photo and video");
+    const deleted = await body(await admin({ action: "delete-sessions", sessionIds: [first.id] }));
+    assert.deepEqual(deleted, { status: "ok", deleted: 1 });
+    assert.equal(mem.objects.size, 0);
+    assert.equal((await body(await admin({ action: "sessions" }))).sessions.length, 0);
+
+    assert.equal((await admin({ action: "delete-sessions", sessionIds: [] })).status, 400);
+    assert.equal((await admin({ action: "keep", sessionId: "nope", keep: true })).status, 400);
+  });
+
+  test("a frame can be marked as having people in its cuts", async () => {
+    const admin = (payload: Record<string, unknown>) =>
+      handleManageFrames(post("manage-frames", { pin: "4827", ...payload }), mem.deps);
+
+    const begin = await body(await admin({ action: "begin", name: "인물", layout: "grid" }));
+    mem.storageHttp.upload(uploadTicket(begin.signedUrl), pngHeader(1080, 1920), "image/png");
+    let res = await admin({ action: "finish", frameId: begin.frameId, name: "인물", layout: "grid", hasPeople: true });
+    assert.equal((await body(res)).frame.hasPeople, true);
+
+    assert.equal((await admin({ action: "people", frameId: begin.frameId, hasPeople: false })).status, 200);
+    const all = await body(await admin({ action: "list" }));
+    assert.equal(all.frames[0].hasPeople, false);
+
+    assert.equal((await admin({ action: "people", frameId: begin.frameId, hasPeople: "yes" })).status, 400);
+  });
+
+  test("deleting a frame takes its PNG with it", async () => {
+    const admin = (payload: Record<string, unknown>) =>
+      handleManageFrames(post("manage-frames", { pin: "4827", ...payload }), mem.deps);
+
+    const begin = await body(await admin({ action: "begin", name: "지울 것", layout: "grid" }));
+    mem.storageHttp.upload(uploadTicket(begin.signedUrl), pngHeader(1080, 1920), "image/png");
+    await admin({ action: "finish", frameId: begin.frameId, name: "지울 것", layout: "grid" });
+    assert.equal(mem.objects.has(`frames/${begin.frameId}.png`), true);
+
+    assert.equal((await admin({ action: "delete-frame", frameId: begin.frameId })).status, 200);
+    assert.equal(mem.objects.has(`frames/${begin.frameId}.png`), false);
+    assert.equal((await body(await admin({ action: "list" }))).frames.length, 0);
+    assert.equal((await admin({ action: "delete-frame", frameId: begin.frameId })).status, 404);
   });
 });

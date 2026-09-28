@@ -104,16 +104,35 @@
     <section class="screen" data-screen="admin" hidden>
       <header class="head row">
         <div>
-          <h1>프레임 관리</h1>
-          <p class="lede">등록한 프레임은 모든 태블릿에 함께 나타나요</p>
+          <h1>관리자</h1>
+          <p class="lede">프레임과 찍은 사진을 여기서 관리해요. 등록한 프레임은 모든 태블릿에 함께 나타나요</p>
           <p class="admin-version" id="app-version"></p>
         </div>
         <button class="button secondary" id="admin-close" type="button">닫기</button>
       </header>
-      <button class="button primary" id="admin-add" type="button">갤러리에서 프레임 불러오기</button>
-      <p class="admin-spec">세로 4컷은 591×1772, 바둑판은 1080×1920 비율의 PNG로 만들어주세요. 사진 자리 4칸만 완전히 투명하게 비워두면 위치와 크기는 자유예요 — 앱이 알아서 찾아냅니다.</p>
-      <p class="admin-message" id="admin-message" hidden></p>
-      <ul class="admin-list" id="admin-list"></ul>
+      <div class="admin-tabs" id="admin-tabs" role="tablist">
+        <button class="admin-tab on" type="button" data-tab="frames" role="tab">프레임</button>
+        <button class="admin-tab" type="button" data-tab="shots" role="tab">찍은 사진</button>
+      </div>
+
+      <div class="admin-pane" data-tab="frames">
+        <button class="button primary" id="admin-add" type="button">갤러리에서 프레임 불러오기</button>
+        <p class="admin-spec">세로 4컷은 591×1772, 바둑판은 1080×1920 비율의 PNG로 만들어주세요. 사진 자리 4칸만 완전히 투명하게 비워두면 위치와 크기는 자유예요 — 앱이 알아서 찾아냅니다.</p>
+        <p class="admin-message" id="admin-message" hidden></p>
+        <ul class="admin-list" id="admin-list"></ul>
+      </div>
+
+      <div class="admin-pane" data-tab="shots" hidden>
+        <div class="shots-bar">
+          <p class="admin-spec" id="shots-note">찍은 사진은 하루 뒤에 자동으로 지워져요. 남기고 싶은 건 보관을 켜두세요.</p>
+          <div class="shots-actions">
+            <button class="button secondary" id="shots-refresh" type="button">새로고침</button>
+            <button class="button secondary" id="shots-delete" type="button" disabled>선택 삭제</button>
+          </div>
+        </div>
+        <p class="admin-message" id="shots-message" hidden></p>
+        <ul class="shot-list" id="shot-list"></ul>
+      </div>
     </section>
   </div>
 
@@ -140,6 +159,10 @@
         <label class="field">
           <span>이름</span>
           <input id="register-name" maxlength="30" autocomplete="off">
+        </label>
+        <label class="check">
+          <input type="checkbox" id="register-people">
+          <span>칸 안에 사람이 있어요<small>찍는 동안 그 사람이 카메라 화면에 같이 보여요</small></span>
         </label>
         <p class="lede" id="register-layout"></p>
         <div class="stack">
