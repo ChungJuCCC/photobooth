@@ -37,9 +37,10 @@ function toBlob(canvas, type, quality) {
 }
 
 // The person stands on the right, feet on the bottom edge, as tall as the
-// picture. A wide pose — an outstretched sword, say — is pulled back so it
-// still leaves the guests somewhere to stand.
-export const PERSON_MAX_WIDTH = 0.75;
+// picture. Height decides the scale so everyone comes out the same size cut
+// to cut; a wide pose — an outstretched sword, say — simply runs off the left
+// edge rather than shrinking the person who is holding it.
+export const PERSON_MAX_WIDTH = 1.1;
 
 export function drawPerson(ctx, image, width, height) {
   let scale = height / image.height;
