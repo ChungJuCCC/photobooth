@@ -15,11 +15,12 @@ import { paintPrint } from "./compose.js";
 import { captureSize, LAYOUTS, PHOTO_RATIO } from "./layouts.js";
 
 export const CLIP_SAMPLE_MS = 67; // aim for 15 fps; a busy tablet gets fewer
-// Each cut keeps the last second and a half before its shutter. Frames are
-// timestamped as they are taken, so a tablet that samples slower produces a
-// slower film rather than a sped-up one — the clip always runs at life speed.
-export const CLIP_WINDOW_MS = 1500;
-export const CLIP_MAX_FRAMES = 45; // memory guard if sampling runs fast
+// A cut keeps everything from the previous shutter up to its own, so the film
+// runs for as long as the shoot did. Frames are timestamped as they are taken,
+// so a tablet that samples slower produces a jerkier film rather than a
+// sped-up one — it always runs at life speed.
+export const CLIP_WINDOW_MS = 8000; // the longest a countdown can reasonably be
+export const CLIP_MAX_FRAMES = 130; // memory guard if sampling runs fast
 
 // Frames are kept as JPEGs, not as bitmaps: at this size 38 frames × 6 takes
 // would be ~90 MB of raw pixels, which a cheap tablet will not survive. They
@@ -68,16 +69,13 @@ async function pickSize(layout) {
   return options[options.length - 1];
 }
 
-// Forward then back, so the clip loops without a jump, with each frame held
-// for as long as it actually took to capture.
-export function pingPong(times) {
+// One pass through the take, each frame held for as long as it actually took
+// to capture, so the film lasts exactly as long as the shooting did.
+export function playOnce(times) {
   const gaps = [];
   for (let i = 0; i < times.length - 1; i++) gaps.push(Math.min(400, Math.max(20, times[i + 1] - times[i])));
-  const average = gaps.length ? gaps.reduce((a, b) => a + b, 0) / gaps.length : 67;
-
-  const steps = times.map((_, i) => ({ index: i, ms: gaps[i] ?? average }));
-  for (let i = times.length - 2; i > 0; i--) steps.push({ index: i, ms: gaps[i - 1] ?? average });
-  return steps;
+  const average = gaps.length ? gaps.reduce((a, b) => a + b, 0) / gaps.length : CLIP_SAMPLE_MS;
+  return times.map((_, i) => ({ index: i, ms: gaps[i] ?? average }));
 }
 
 // ── recording ─────────────────────────────────────────────────────────
@@ -285,7 +283,7 @@ async function encodeWithRecorder({ frame, frameImage, clips, when, size }) {
 // first one's timing drives all four.
 function timeline(clips) {
   const length = Math.min(...clips.map((c) => c.length));
-  return pingPong(clips[0].slice(0, length).map((f) => f.at));
+  return playOnce(clips[0].slice(0, length).map((f) => f.at));
 }
 
 // clips: four arrays of captured frames, in slot order.
