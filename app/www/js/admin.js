@@ -308,6 +308,26 @@ export function setupAdmin({ api, library, show, goHome, toast }) {
 
   let pendingPerson = null; // the cut-out waiting to be named
 
+  $("people-label-save").addEventListener("click", async () => {
+    const label = $("people-label").value.replace(/\s+/g, " ").trim();
+    if (!label) {
+      personMessage("버튼에 쓸 이름을 입력해주세요.");
+      return;
+    }
+    const button = $("people-label-save");
+    button.disabled = true;
+    try {
+      await api.manageFrames("person-label", adminPin, { label });
+      await library.refresh().catch(() => {});
+      toast("버튼 이름을 바꿨습니다");
+      personMessage("");
+    } catch (err) {
+      handleAdminError(err);
+    } finally {
+      button.disabled = false;
+    }
+  });
+
   $("person-add").addEventListener("click", () => {
     $("person-file").value = "";
     $("person-file").click();
@@ -467,7 +487,8 @@ export function setupAdmin({ api, library, show, goHome, toast }) {
     personMessage("");
     const list = $("person-list");
     try {
-      const { people } = await api.manageFrames("person-list", adminPin);
+      const { people, peopleLabel } = await api.manageFrames("person-list", adminPin);
+      if (peopleLabel && document.activeElement !== $("people-label")) $("people-label").value = peopleLabel;
       stampNow();
       setCount("count-people", people.length);
       list.replaceChildren();

@@ -88,6 +88,15 @@ export function supabaseDeps(): Deps {
     async deletePerson(id) {
       must(await client.from("people").delete().eq("id", id));
     },
+    async getPeopleLabel() {
+      const row = must(
+        await client.from("admin_settings").select("people_label").eq("id", true).maybeSingle(),
+      ) as { people_label?: string } | null;
+      return row?.people_label ?? "친구";
+    },
+    async setPeopleLabel(label) {
+      must(await client.from("admin_settings").update({ people_label: label }).eq("id", true));
+    },
     async listRecentSessions(limit) {
       return must(
         await client

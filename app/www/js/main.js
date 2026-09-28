@@ -7,7 +7,7 @@ import { deviceId as loadDeviceId } from "./db.js";
 import { FrameLibrary } from "./frames.js";
 import { UploadQueue } from "./queue.js";
 import { ClipRecorder, renderMotionPrint } from "./motion.js";
-import { captureSize, frameRatio } from "./layouts.js";
+import { captureSize, frameRatio, slotRatio } from "./layouts.js";
 import { setupAdmin } from "./admin.js";
 import qrcode from "../vendor/qrcode.mjs";
 
@@ -39,6 +39,10 @@ class ShootCancelled extends Error {}
 const state = {
   screen: "frames",
   cancelled: false,
+  // "frame-first": pick a frame, then shoot.
+  // "people-first": shoot with the cast, then pick a frame for the prints.
+  flow: "frame-first",
+  pickingFrame: false,
   frame: null,
   sessionId: null,
   shots: [],
@@ -79,6 +83,8 @@ function toast(message) {
 
 function goHome() {
   state.cancelled = true;
+  state.flow = "frame-first";
+  resetFrameScreen();
   camera.stop();
   releaseShots();
   state.clips?.release();
@@ -109,6 +115,9 @@ async function renderFrameRows() {
   for (const row of document.querySelectorAll(".frame-row")) {
     const layout = row.dataset.layout;
     row.replaceChildren();
+    // Shots taken with the cast are portrait, so only frames with portrait
+    // cuts can hold them.
+    row.parentElement.hidden = state.pickingFrame && layout !== PEOPLE_LAYOUT;
     for (const frame of library.byLayout(layout)) {
       if (token !== frameRenderToken) return;
       const card = document.createElement("button");
@@ -119,13 +128,68 @@ async function renderFrameRows() {
       const label = document.createElement("span");
       label.textContent = frame.name;
       card.append(canvas, label);
-      card.addEventListener("click", () => startSession(frame));
+      card.addEventListener("click", () => (state.pickingFrame ? applyFrame(frame) : startSession(frame)));
       row.append(card);
 
       const image = await library.imageFor(frame).catch(() => null);
       renderComposite(canvas, frame, [], image, { placeholder: "#E9E9E6", scale: 0.35 });
     }
   }
+}
+
+// The cast shoots in this layout's cut shape, whatever frame is chosen after.
+const PEOPLE_LAYOUT = "grid";
+
+// Stand-in used to preview a shoot whose frame has not been chosen yet.
+function plainPeopleFrame() {
+  return library.builtins.find((f) => f.layout === PEOPLE_LAYOUT) ?? library.builtins[0];
+}
+
+// "기훈간사님" + 과 / "친구" + 와 — the particle follows the last letter.
+function withParticle(name) {
+  const last = name.trim().slice(-1);
+  const code = last.charCodeAt(0);
+  if (code < 0xac00 || code > 0xd7a3) return `${name}와`;
+  return (code - 0xac00) % 28 === 0 ? `${name}와` : `${name}과`;
+}
+
+function renderCastButton() {
+  const button = $("with-people");
+  const cast = library.people;
+  button.hidden = state.pickingFrame || cast.length === 0;
+  if (button.hidden) return;
+
+  $("with-people-text").textContent = `${withParticle(library.peopleLabel)} 함께 찍기`;
+  const strip = $("with-people-cast");
+  if (strip.childElementCount !== Math.min(cast.length, 3)) {
+    strip.replaceChildren();
+    for (const person of cast.slice(0, 3)) {
+      const img = document.createElement("img");
+      img.src = URL.createObjectURL(person.blob);
+      img.alt = "";
+      img.addEventListener("load", () => URL.revokeObjectURL(img.src), { once: true });
+      strip.append(img);
+    }
+  }
+}
+
+// After a shoot with the cast, the same screen becomes the frame chooser.
+function askForFrame() {
+  state.pickingFrame = true;
+  document.body.classList.add("picking-frame");
+  $("frames-title").textContent = "어떤 프레임에 담을까요?";
+  $("frames-lede").textContent = "고르면 바로 완성돼요";
+  renderCastButton();
+  renderFrameRows();
+  show("frames");
+}
+
+function resetFrameScreen() {
+  state.pickingFrame = false;
+  document.body.classList.remove("picking-frame");
+  $("frames-title").textContent = "프레임을 골라주세요";
+  $("frames-lede").textContent = "마음에 드는 디자인을 누르면 바로 촬영을 시작해요";
+  renderCastButton();
 }
 
 function renderQueueNote() {
@@ -136,19 +200,24 @@ function renderQueueNote() {
 
 // ── 2. shooting ─────────────────────────────────────────────────────────
 
+// frame === null means the cast leads and the frame is chosen afterwards.
 async function startSession(frame) {
   if (state.shooting) return;
   state.shooting = true;
   state.cancelled = false;
+  state.pickingFrame = false;
   releaseShots();
+  state.flow = frame ? "frame-first" : "people-first";
   state.frame = frame;
   state.sessionId = crypto.randomUUID();
 
-  // Whoever is registered poses with the guests, one per take, looping.
+  // The cast only joins the shoot the guests asked for.
   const cast = [];
-  for (const person of library.people) {
-    const image = await library.personImage(person).catch(() => null);
-    if (image) cast.push(image);
+  if (state.flow === "people-first") {
+    for (const person of library.people) {
+      const image = await library.personImage(person).catch(() => null);
+      if (image) cast.push(image);
+    }
   }
   const shots = cast.length ? SHOTS_WITH_PEOPLE : SHOTS;
   state.shotCount = shots;
@@ -168,10 +237,10 @@ async function startSession(frame) {
 
   state.clips?.release();
   state.clips = null;
-  // Viewfinder, takes and clips all take the shape of the chosen frame's cuts,
-  // which for a registered PNG are read from its own transparency.
-  await library.imageFor(state.frame).catch(() => null);
-  const ratio = frameRatio(state.frame);
+  // Viewfinder, takes and clips all take the shape of the cuts they will land
+  // in, which for a registered PNG is read from its own transparency.
+  if (state.frame) await library.imageFor(state.frame).catch(() => null);
+  const ratio = state.frame ? frameRatio(state.frame) : slotRatio(PEOPLE_LAYOUT);
   document.documentElement.style.setProperty("--shot-ratio", String(ratio));
   let clips = null;
   try {
@@ -333,8 +402,9 @@ async function updatePick() {
   $("pick-grid").classList.toggle("full", state.picked.length === PICKS);
   $("pick-confirm").disabled = state.picked.length !== PICKS;
 
-  const image = await library.imageFor(state.frame).catch(() => null);
-  renderComposite($("pick-preview"), state.frame, state.picked.map((i) => state.shots[i].bitmap), image, {
+  const frame = state.frame ?? plainPeopleFrame();
+  const image = await library.imageFor(frame).catch(() => null);
+  renderComposite($("pick-preview"), frame, state.picked.map((i) => state.shots[i].bitmap), image, {
     placeholder: "#E9E9E6",
     scale: 0.3,
   });
@@ -364,6 +434,19 @@ function drawQr(canvas, text) {
       if (qr.isDark(r, c)) ctx.fillRect((c + quiet) * scale, (r + quiet) * scale, scale, scale);
     }
   }
+}
+
+// The guests have chosen their four. With the cast, the frame is still to
+// come; otherwise the print can be made now.
+function confirmPick() {
+  if (state.flow === "people-first" && !state.frame) return askForFrame();
+  return finishSession();
+}
+
+function applyFrame(frame) {
+  state.frame = frame;
+  resetFrameScreen();
+  finishSession();
 }
 
 async function finishSession() {
@@ -464,8 +547,12 @@ async function boot() {
   queue = new UploadQueue(api, device);
 
   await library.loadCache().catch((err) => console.error("frame cache unavailable", err));
-  library.addEventListener("change", () => renderFrameRows());
+  library.addEventListener("change", () => {
+    renderCastButton();
+    renderFrameRows();
+  });
   await renderFrameRows();
+  renderCastButton();
   library.refresh().catch((err) => console.warn("frame refresh failed", err));
   setInterval(() => library.refresh().catch(() => {}), FRAME_REFRESH_MS);
 
@@ -475,10 +562,11 @@ async function boot() {
   });
   queue.start().catch((err) => console.error("upload queue unavailable", err));
 
-  $("pick-confirm").addEventListener("click", finishSession);
-  $("pick-reshoot").addEventListener("click", () => state.frame && startSession(state.frame));
+  $("pick-confirm").addEventListener("click", confirmPick);
+  $("pick-reshoot").addEventListener("click", () => startSession(state.flow === "people-first" ? null : state.frame));
   $("result-home").addEventListener("click", goHome);
-  $("camera-retry").addEventListener("click", () => state.frame && startSession(state.frame));
+  $("camera-retry").addEventListener("click", () => startSession(state.flow === "people-first" ? null : state.frame));
+  $("with-people").addEventListener("click", () => startSession(null));
   for (const el of document.querySelectorAll("[data-go-home]")) el.addEventListener("click", goHome);
 
   // Android's back button: come back to the booth's first screen rather than

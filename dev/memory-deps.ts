@@ -25,7 +25,7 @@ export function createMemoryDeps(options: MemoryOptions) {
   const objects = new Map<string, StoredObject>();
   const uploadTickets = new Map<string, Ticket>();
   const readTickets = new Map<string, Ticket>();
-  const admin = { pin: options.adminPin ?? null, failed: 0, lockedUntil: 0 };
+  const admin = { pin: options.adminPin ?? null, failed: 0, lockedUntil: 0, peopleLabel: "친구" };
 
   const key = (bucket: string, path: string) => `${bucket}/${path}`;
   const token = () => crypto.randomUUID().replace(/-/g, "");
@@ -98,6 +98,12 @@ export function createMemoryDeps(options: MemoryOptions) {
     },
     async deletePerson(id) {
       people.delete(id);
+    },
+    async getPeopleLabel() {
+      return admin.peopleLabel;
+    },
+    async setPeopleLabel(label) {
+      admin.peopleLabel = label;
     },
     async listRecentSessions(limit) {
       return [...sessions.values()]

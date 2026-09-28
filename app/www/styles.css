@@ -145,6 +145,40 @@ h2 {
 .frame-card span { font-size: var(--t-small); color: var(--muted); }
 .frame-card:active canvas { transform: scale(0.97); opacity: 0.75; }
 
+/* The other way in: press this and the shoot starts with the cast, the frame
+   comes afterwards. It sits under the frames, wide enough to read across the
+   room. */
+.with-people {
+  display: flex;
+  align-items: center;
+  gap: clamp(14px, 2vw, 24px);
+  padding: clamp(12px, 1.6vh, 20px) clamp(20px, 2.6vw, 32px);
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--paper);
+  box-shadow: var(--lift);
+}
+.with-people:active { opacity: 0.7; }
+.with-people:focus-visible { outline: 3px solid var(--ink); outline-offset: 4px; }
+
+.with-people-cast { display: flex; flex: none; }
+.with-people-cast img {
+  width: clamp(44px, 5vw, 64px);
+  height: clamp(44px, 5vw, 64px);
+  border-radius: 50%;
+  object-fit: cover;
+  object-position: top center;
+  background: var(--paper);
+  box-shadow: 0 0 0 2px var(--ink);
+}
+.with-people-cast img + img { margin-left: -14px; }
+
+.with-people-text {
+  font-size: var(--t-h2);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+
 .queue-note { font-size: var(--t-small); color: var(--muted); }
 
 .admin-hotspot {
@@ -579,6 +613,10 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.45); }
 
   /* 1. frames: the two kinds sit side by side instead of stacked */
   .frame-groups { flex-direction: row; gap: clamp(24px, 3vw, 56px); padding-top: 0; align-items: center; }
+  /* Choosing a frame for shots already taken: only one kind fits them, so it
+     takes the middle of the screen instead of half of it. */
+  .picking-frame .frame-groups { justify-content: center; }
+  .picking-frame .frame-group { flex: 0 1 auto; }
   /* Heading on a shared top row, so both column titles line up however
      tall each row of frames turns out to be. */
   .frame-group { flex: 1; min-width: 0; display: grid; grid-template-rows: auto 1fr; align-items: center; }
@@ -656,3 +694,8 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.45); }
   dialog.sheet { max-height: 96dvh; }
   .keypad button { min-height: 62px; }
 }
+
+.field.inline { flex-direction: column; gap: 4px; }
+.field.inline span { font-size: var(--t-small); color: var(--muted); }
+.field.inline input { min-height: 54px; width: clamp(150px, 17vw, 230px); font-size: var(--t-small); }
+

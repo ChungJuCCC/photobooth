@@ -46,6 +46,8 @@ export interface Db {
   insertPerson(row: PersonRow): Promise<void>;
   updatePerson(id: string, patch: Partial<PersonRow>): Promise<void>;
   deletePerson(id: string): Promise<void>;
+  getPeopleLabel(): Promise<string>;
+  setPeopleLabel(label: string): Promise<void>;
   listRecentSessions(limit: number): Promise<SessionRow[]>;
   checkAdminPin(pin: string): Promise<PinCheck>;
 }
@@ -275,10 +277,15 @@ export function handleListFrames(req: Request, deps: Deps): Promise<Response> {
   return serve(req, ["GET"], async () => {
     const denied = boothAuthorized(req, deps);
     if (denied) return denied;
-    const [frames, people] = await Promise.all([deps.db.listFrames(false), deps.db.listPeople(false)]);
+    const [frames, people, peopleLabel] = await Promise.all([
+      deps.db.listFrames(false),
+      deps.db.listPeople(false),
+      deps.db.getPeopleLabel(),
+    ]);
     return json(200, {
       frames: frames.map((r) => frameDto(r, deps)),
       people: people.map((r) => personDto(r, deps)),
+      peopleLabel,
     });
   });
 }
@@ -363,8 +370,15 @@ export function handleManageFrames(req: Request, deps: Deps): Promise<Response> 
 
       // ── 인물 ─────────────────────────────────────────────────────────
       case "person-list": {
-        const rows = await deps.db.listPeople(true);
-        return json(200, { people: rows.map((r) => personDto(r, deps)) });
+        const [rows, peopleLabel] = await Promise.all([deps.db.listPeople(true), deps.db.getPeopleLabel()]);
+        return json(200, { people: rows.map((r) => personDto(r, deps)), peopleLabel });
+      }
+
+      case "person-label": {
+        const label = cleanFrameName(body.label);
+        if (!label) return fail(400, "invalid_name");
+        await deps.db.setPeopleLabel(label);
+        return json(200, { status: "ok", peopleLabel: label });
       }
 
       case "person-begin": {

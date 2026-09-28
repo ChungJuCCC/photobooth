@@ -19,8 +19,8 @@
     <!-- 1. 프레임 선택 (대기 화면) -->
     <section class="screen" data-screen="frames">
       <header class="head">
-        <h1>프레임을 골라주세요</h1>
-        <p class="lede">마음에 드는 디자인을 누르면 바로 촬영을 시작해요</p>
+        <h1 id="frames-title">프레임을 골라주세요</h1>
+        <p class="lede" id="frames-lede">마음에 드는 디자인을 누르면 바로 촬영을 시작해요</p>
       </header>
       <div class="frame-groups">
         <section class="frame-group">
@@ -32,6 +32,10 @@
           <div class="frame-row" data-layout="grid"></div>
         </section>
       </div>
+      <button class="with-people" id="with-people" type="button" hidden>
+        <span class="with-people-cast" id="with-people-cast" aria-hidden="true"></span>
+        <span class="with-people-text" id="with-people-text"></span>
+      </button>
       <p class="queue-note" id="queue-note" hidden></p>
       <button class="admin-hotspot" id="admin-hotspot" type="button" aria-label="관리자 메뉴 (3초 동안 누르거나 다섯 번 두드리기)"></button>
     </section>
@@ -133,7 +137,14 @@
       <div class="admin-pane" data-tab="people" hidden>
         <div class="desk-bar">
           <p class="desk-note">손님 옆에 서서 같이 찍힐 사람이에요. 배경을 지운 PNG로 올리면 오른쪽에 서고, 사진과 영상에 함께 담깁니다. 한 명이라도 있으면 8번 찍습니다.</p>
-          <button class="button primary" id="person-add" type="button">인물 불러오기</button>
+          <div class="desk-actions">
+            <label class="field inline">
+              <span>버튼에 쓸 이름</span>
+              <input id="people-label" maxlength="20" autocomplete="off" placeholder="기훈간사님">
+            </label>
+            <button class="button secondary" id="people-label-save" type="button">저장</button>
+            <button class="button primary" id="person-add" type="button">인물 불러오기</button>
+          </div>
         </div>
         <p class="admin-message" id="person-message" hidden></p>
         <ul class="ledger" id="person-list"></ul>

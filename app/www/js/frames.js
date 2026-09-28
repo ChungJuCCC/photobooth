@@ -7,6 +7,7 @@ import { readSlots } from "./compose.js";
 
 const CACHE_KEY = "frames";
 const PEOPLE_KEY = "people";
+const LABEL_KEY = "people-label";
 
 export class FrameLibrary extends EventTarget {
   constructor(api, eventName) {
@@ -15,22 +16,28 @@ export class FrameLibrary extends EventTarget {
     this.builtins = builtinFrames(eventName);
     this.registered = []; // { id, name, layout, kind: "png", createdAt, blob }
     this.people = []; // { id, name, blob } — cut-outs the guests pose with
+    this.peopleLabel = "친구"; // what the booth's button calls them
     this.images = new Map(); // id → ImageBitmap
     this.slots = new Map(); // id → the cuts read out of that frame's transparency
     this.lastRefresh = 0;
   }
 
   async loadCache() {
-    const [frames, people] = await Promise.all([kv.get(CACHE_KEY), kv.get(PEOPLE_KEY)]);
+    const [frames, people, label] = await Promise.all([kv.get(CACHE_KEY), kv.get(PEOPLE_KEY), kv.get(LABEL_KEY)]);
     this.registered = (frames ?? []).map((f) => ({ ...f, kind: "png" }));
     this.people = people ?? [];
+    this.peopleLabel = label ?? "친구";
     this.changed();
   }
 
   // Replaces the list with the server's, downloading only frames we don't
   // already have. On any failure the cached list stays as it was.
   async refresh() {
-    const { frames, people = [] } = await this.api.listFrames();
+    const { frames, people = [], peopleLabel } = await this.api.listFrames();
+    if (peopleLabel) {
+      this.peopleLabel = peopleLabel;
+      await kv.set(LABEL_KEY, peopleLabel);
+    }
     await this.refreshPeople(people);
     const known = new Map(this.registered.map((f) => [f.id, f]));
     const next = [];
