@@ -36,6 +36,19 @@ function toBlob(canvas, type, quality) {
   );
 }
 
+// The person stands on the right, feet on the bottom edge, as tall as the
+// picture. A wide pose — an outstretched sword, say — is pulled back so it
+// still leaves the guests somewhere to stand.
+export const PERSON_MAX_WIDTH = 0.75;
+
+export function drawPerson(ctx, image, width, height) {
+  let scale = height / image.height;
+  if (image.width * scale > width * PERSON_MAX_WIDTH) scale = (width * PERSON_MAX_WIDTH) / image.width;
+  const w = image.width * scale;
+  const h = image.height * scale;
+  ctx.drawImage(image, width - w, height - h, w, h);
+}
+
 export class Camera {
   constructor(video) {
     this.video = video;
@@ -75,15 +88,18 @@ export class Camera {
     this.video.srcObject = null;
   }
 
-  // One mirrored still, in the shape of the chosen frame's cuts.
-  async takePhoto(ratio = PHOTO_RATIO) {
+  // One mirrored still, in the shape of the chosen frame's cuts, with whoever
+  // is posing with the guests standing in it.
+  async takePhoto(ratio = PHOTO_RATIO, person = null) {
     const { videoWidth: vw, videoHeight: vh } = this.video;
     if (!vw || !vh) throw new CameraError("busy");
     const { width, height } = captureSize(ratio, PHOTO_LONG_SIDE);
     const canvas = document.createElement("canvas");
     canvas.width = width;
     canvas.height = height;
-    drawMirrored(canvas.getContext("2d"), this.video, centerCrop(vw, vh, ratio), width, height);
+    const ctx = canvas.getContext("2d");
+    drawMirrored(ctx, this.video, centerCrop(vw, vh, ratio), width, height);
+    if (person) drawPerson(ctx, person, width, height);
     const blob = await toBlob(canvas, "image/jpeg", 0.92);
     canvas.width = canvas.height = 0;
     const bitmap = await createImageBitmap(blob);

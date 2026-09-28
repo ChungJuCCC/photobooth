@@ -30,6 +30,14 @@ export type SessionRow = {
   keep: boolean;
 };
 
+export type PersonRow = {
+  id: string;
+  name: string;
+  path: string;
+  is_active: boolean;
+  created_at: string;
+};
+
 export type FrameRow = {
   id: string;
   name: string;

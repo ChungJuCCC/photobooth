@@ -200,7 +200,6 @@ export function setupAdmin({ api, library, show, goHome, toast }) {
     name.textContent = f.name;
     const detail = document.createElement("span");
     const marks = [LAYOUTS[f.layout].label];
-    if (f.hasPeople) marks.push("칸 안에 사람 있음");
     if (!f.isActive) marks.push("손님에게 안 보임");
     detail.textContent = marks.join(" · ");
     meta.append(name, detail);
@@ -222,12 +221,6 @@ export function setupAdmin({ api, library, show, goHome, toast }) {
       });
       return button;
     };
-
-    const people = act(f.hasPeople ? "사람 있음" : "사람 없음", async () => {
-      await api.manageFrames("people", adminPin, { frameId: f.id, hasPeople: !f.hasPeople });
-      toast(f.hasPeople ? "찍을 때 사람을 안 보여줍니다" : "찍을 때 사람이 같이 보입니다");
-    });
-    people.classList.toggle("on", f.hasPeople);
 
     const rename = act("이름", async () => {
       const name = await askName(f.name);
@@ -254,7 +247,7 @@ export function setupAdmin({ api, library, show, goHome, toast }) {
 
     const actions = document.createElement("div");
     actions.className = "row-actions";
-    actions.append(people, rename, visible, remove);
+    actions.append(rename, visible, remove);
 
     li.append(canvas, meta, actions);
     return li;
@@ -311,6 +304,251 @@ export function setupAdmin({ api, library, show, goHome, toast }) {
     });
   }
 
+  // ── 인물 ─────────────────────────────────────────────────────────────
+
+  let pendingPerson = null; // the cut-out waiting to be named
+
+  $("person-add").addEventListener("click", () => {
+    $("person-file").value = "";
+    $("person-file").click();
+  });
+
+  $("person-file").addEventListener("change", async () => {
+    const file = $("person-file").files?.[0];
+    if (file) await inspectPerson(file);
+  });
+
+  function showPersonSheet({ title, message = "", form = false }) {
+    $("person-title").textContent = title;
+    $("person-dialog-message").textContent = message;
+    $("person-body").hidden = !form;
+    $("person-close-only").hidden = form;
+    if (!$("person-dialog").open) $("person-dialog").showModal();
+  }
+
+  // A cut-out needs a real hole around it, or the booth pastes a white box
+  // next to the guests.
+  async function inspectPerson(file) {
+    const isPng = file.type === "image/png" || /\.png$/i.test(file.name ?? "");
+    if (!isPng) {
+      return showPersonSheet({
+        title: "등록할 수 없어요",
+        message: "PNG 파일만 등록할 수 있어요. 배경이 지워진 PNG여야 사진에 자연스럽게 들어갑니다.",
+      });
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      return showPersonSheet({ title: "등록할 수 없어요", message: "파일이 너무 커요. 10MB 이하로 줄여주세요." });
+    }
+
+    let bitmap;
+    try {
+      bitmap = await createImageBitmap(file);
+    } catch {
+      return showPersonSheet({ title: "등록할 수 없어요", message: "이미지를 열지 못했어요. 파일을 다시 확인해주세요." });
+    }
+
+    const probe = document.createElement("canvas");
+    probe.width = 120;
+    probe.height = Math.max(1, Math.round((120 * bitmap.height) / bitmap.width));
+    const ctx = probe.getContext("2d", { willReadFrequently: true });
+    ctx.drawImage(bitmap, 0, 0, probe.width, probe.height);
+    const pixels = ctx.getImageData(0, 0, probe.width, probe.height).data;
+    let clear = 0;
+    for (let i = 3; i < pixels.length; i += 4) if (pixels[i] < 32) clear++;
+    const share = clear / (pixels.length / 4);
+    if (share < 0.05) {
+      bitmap.close();
+      return showPersonSheet({
+        title: "등록할 수 없어요",
+        message: "배경이 지워지지 않았어요. 사람만 남기고 배경을 투명하게 만든 PNG로 올려주세요.",
+      });
+    }
+
+    // Trim the empty space around the person, so every cut-out fills its
+    // share of the photo no matter how the file was exported.
+    const box = alphaBounds(pixels, probe.width, probe.height, bitmap.width / probe.width);
+    const trimmed = await trimTo(file, box);
+    probe.width = probe.height = 0;
+    bitmap.close();
+
+    pendingPerson = { blob: trimmed };
+    const preview = $("person-preview");
+    preview.replaceChildren();
+    const img = document.createElement("img");
+    img.src = URL.createObjectURL(trimmed);
+    img.alt = "";
+    img.addEventListener("load", () => URL.revokeObjectURL(img.src), { once: true });
+    preview.append(img);
+
+    $("person-name").value = defaultFrameName(file.name);
+    $("person-submit").disabled = false;
+    showPersonSheet({ title: "이 사람을 등록할까요?", form: true });
+  }
+
+  $("person-cancel").addEventListener("click", () => {
+    pendingPerson = null;
+    $("person-dialog").close();
+  });
+  $("person-dismiss").addEventListener("click", () => $("person-dialog").close());
+
+  $("person-submit").addEventListener("click", async () => {
+    if (!pendingPerson) return;
+    const name = $("person-name").value.replace(/\s+/g, " ").trim();
+    if (!name) {
+      $("person-dialog-message").textContent = "이름을 입력해주세요.";
+      return;
+    }
+    const submit = $("person-submit");
+    submit.disabled = true;
+    $("person-dialog-message").textContent = "올리고 있어요";
+    try {
+      const begin = await api.manageFrames("person-begin", adminPin, { name });
+      await api.putSigned(begin.signedUrl, pendingPerson.blob, "image/png");
+      await api.manageFrames("person-finish", adminPin, { personId: begin.personId, name });
+      pendingPerson = null;
+      $("person-dialog").close();
+      toast("인물을 등록했습니다");
+      await Promise.all([loadPeople(), library.refresh().catch(() => {})]);
+    } catch (err) {
+      submit.disabled = false;
+      $("person-dialog-message").textContent =
+        err instanceof ApiError && err.isNetwork ? "인터넷 연결을 확인해주세요." : "등록하지 못했어요. 다시 시도해주세요.";
+    }
+  });
+
+  // Bounding box of everything that is not transparent, in source pixels.
+  function alphaBounds(pixels, width, height, scale) {
+    let x0 = width, y0 = height, x1 = -1, y1 = -1;
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        if (pixels[(y * width + x) * 4 + 3] < 32) continue;
+        if (x < x0) x0 = x;
+        if (y < y0) y0 = y;
+        if (x > x1) x1 = x;
+        if (y > y1) y1 = y;
+      }
+    }
+    if (x1 < 0) return null;
+    // One probe cell of slack, so anti-aliased edges survive the crop.
+    return {
+      x: Math.max(0, (x0 - 1) * scale),
+      y: Math.max(0, (y0 - 1) * scale),
+      w: (x1 - x0 + 3) * scale,
+      h: (y1 - y0 + 3) * scale,
+    };
+  }
+
+  async function trimTo(file, box) {
+    if (!box) return file;
+    const source = await createImageBitmap(file);
+    const w = Math.min(Math.round(box.w), source.width);
+    const h = Math.min(Math.round(box.h), source.height);
+    if (w >= source.width && h >= source.height) {
+      source.close();
+      return file;
+    }
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    canvas.getContext("2d").drawImage(source, Math.round(box.x), Math.round(box.y), w, h, 0, 0, w, h);
+    source.close();
+    const blob = await new Promise((r) => canvas.toBlob(r, "image/png"));
+    canvas.width = canvas.height = 0;
+    return blob ?? file;
+  }
+
+  function personMessage(text) {
+    const el = $("person-message");
+    el.textContent = text;
+    el.hidden = !text;
+  }
+
+  async function loadPeople() {
+    personMessage("");
+    const list = $("person-list");
+    try {
+      const { people } = await api.manageFrames("person-list", adminPin);
+      stampNow();
+      setCount("count-people", people.length);
+      list.replaceChildren();
+      if (!people.length) {
+        const empty = document.createElement("li");
+        empty.className = "admin-empty";
+        empty.textContent = "등록한 인물이 없습니다. 인물이 없으면 지금처럼 6번 찍고 프레임만 씌웁니다.";
+        list.append(empty);
+        return;
+      }
+      for (const person of people) list.append(personRow(person));
+    } catch (err) {
+      handleAdminError(err);
+    }
+  }
+
+  function personRow(person) {
+    const li = document.createElement("li");
+    li.classList.toggle("hidden-frame", !person.isActive);
+
+    const figure = document.createElement("div");
+    figure.className = "person-thumb";
+    const img = document.createElement("img");
+    img.src = person.url;
+    img.alt = "";
+    figure.append(img);
+
+    const meta = document.createElement("div");
+    meta.className = "meta";
+    const name = document.createElement("strong");
+    name.textContent = person.name;
+    const detail = document.createElement("span");
+    detail.textContent = person.isActive ? "촬영에 나옵니다" : "촬영에 안 나옵니다";
+    meta.append(name, detail);
+
+    const act = (label, run) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "button secondary";
+      button.textContent = label;
+      button.addEventListener("click", async () => {
+        button.disabled = true;
+        try {
+          await run();
+          await Promise.all([loadPeople(), library.refresh().catch(() => {})]);
+        } catch (err) {
+          handleAdminError(err);
+          button.disabled = false;
+        }
+      });
+      return button;
+    };
+
+    const rename = act("이름", async () => {
+      const next = await askName(person.name);
+      if (next === null) throw new Cancelled();
+      await api.manageFrames("person-rename", adminPin, { personId: person.id, name: next });
+      toast("이름을 바꿨습니다");
+    });
+    rename.classList.add("quiet");
+
+    const visible = act(person.isActive ? "빼기" : "넣기", async () => {
+      await api.manageFrames(person.isActive ? "person-hide" : "person-show", adminPin, { personId: person.id });
+      toast(person.isActive ? "촬영에서 뺐습니다" : "촬영에 다시 넣었습니다");
+    });
+
+    const remove = act("지우기", async () => {
+      if (!confirm(`"${person.name}" 을 지웁니다. 되돌릴 수 없습니다.`)) throw new Cancelled();
+      await api.manageFrames("person-delete", adminPin, { personId: person.id });
+      toast("인물을 지웠습니다");
+    });
+    remove.classList.add("quiet");
+
+    const actions = document.createElement("div");
+    actions.className = "row-actions";
+    actions.append(rename, visible, remove);
+
+    li.append(figure, meta, actions);
+    return li;
+  }
+
   // ── 찍은 사진 ────────────────────────────────────────────────────────
 
   const picked = new Set();
@@ -321,6 +559,7 @@ export function setupAdmin({ api, library, show, goHome, toast }) {
       for (const other of document.querySelectorAll(".desk-tab")) other.classList.toggle("on", other === tab);
       for (const pane of document.querySelectorAll(".admin-pane")) pane.hidden = pane.dataset.tab !== tab.dataset.tab;
       if (tab.dataset.tab === "shots") loadShots();
+      if (tab.dataset.tab === "people") loadPeople();
     });
   }
 
@@ -525,7 +764,6 @@ export function setupAdmin({ api, library, show, goHome, toast }) {
     renderComposite($("register-preview"), { layout, kind: "png", slots }, [], canvas, { placeholder: "#E9E9E6", scale: 0.4 });
     $("register-name").value = defaultFrameName(file.name);
     $("register-layout").textContent = `${spec.label} 프레임으로 등록돼요`;
-    $("register-people").checked = false;
     $("register-submit").disabled = false;
     showRegister({ title: "이 프레임을 등록할까요?", preview: true });
   }
@@ -551,7 +789,6 @@ export function setupAdmin({ api, library, show, goHome, toast }) {
         frameId: begin.frameId,
         name,
         layout: pending.layout,
-        hasPeople: $("register-people").checked,
       });
 
       pending = null;

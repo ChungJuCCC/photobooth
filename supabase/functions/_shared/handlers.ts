@@ -6,6 +6,7 @@ import {
   cleanFrameName,
   expiresAtFrom,
   type FrameRow,
+  type PersonRow,
   isDeviceId,
   isLayout,
   isPin,
@@ -40,6 +41,11 @@ export interface Db {
   insertFrame(row: FrameRow): Promise<void>;
   updateFrame(id: string, patch: Partial<FrameRow>): Promise<void>;
   deleteFrame(id: string): Promise<void>;
+  listPeople(includeHidden: boolean): Promise<PersonRow[]>;
+  getPerson(id: string): Promise<PersonRow | null>;
+  insertPerson(row: PersonRow): Promise<void>;
+  updatePerson(id: string, patch: Partial<PersonRow>): Promise<void>;
+  deletePerson(id: string): Promise<void>;
   listRecentSessions(limit: number): Promise<SessionRow[]>;
   checkAdminPin(pin: string): Promise<PinCheck>;
 }
@@ -238,6 +244,21 @@ export function handleGetSession(req: Request, deps: Deps): Promise<Response> {
 // ── list-frames ─────────────────────────────────────────────────────────
 // Tablets refresh their frame list here. Also keeps a free project awake.
 
+// People live in the frames bucket under their own prefix; both are public
+// artwork rather than anyone's photo.
+export const PEOPLE_PREFIX = "people";
+const personPath = (id: string) => `${PEOPLE_PREFIX}/${id}.png`;
+
+function personDto(row: PersonRow, deps: Deps) {
+  return {
+    id: row.id,
+    name: row.name,
+    url: deps.storage.publicUrl(FRAMES_BUCKET, row.path),
+    isActive: row.is_active,
+    createdAt: row.created_at,
+  };
+}
+
 function frameDto(row: FrameRow, deps: Deps) {
   return {
     id: row.id,
@@ -254,8 +275,11 @@ export function handleListFrames(req: Request, deps: Deps): Promise<Response> {
   return serve(req, ["GET"], async () => {
     const denied = boothAuthorized(req, deps);
     if (denied) return denied;
-    const rows = await deps.db.listFrames(false);
-    return json(200, { frames: rows.map((r) => frameDto(r, deps)) });
+    const [frames, people] = await Promise.all([deps.db.listFrames(false), deps.db.listPeople(false)]);
+    return json(200, {
+      frames: frames.map((r) => frameDto(r, deps)),
+      people: people.map((r) => personDto(r, deps)),
+    });
   });
 }
 
@@ -334,6 +358,75 @@ export function handleManageFrames(req: Request, deps: Deps): Promise<Response> 
         const row = await deps.db.getFrame(frameId);
         if (!row) return fail(404, "frame_not_found");
         await deps.db.updateFrame(frameId, { is_active: action === "show" });
+        return json(200, { status: "ok" });
+      }
+
+      // ── 인물 ─────────────────────────────────────────────────────────
+      case "person-list": {
+        const rows = await deps.db.listPeople(true);
+        return json(200, { people: rows.map((r) => personDto(r, deps)) });
+      }
+
+      case "person-begin": {
+        if (!cleanFrameName(body.name)) return fail(400, "invalid_name");
+        const personId = deps.newId();
+        const path = personPath(personId);
+        const signedUrl = await deps.storage.createSignedUploadUrl(FRAMES_BUCKET, path);
+        return json(200, { status: "ok", personId, path, signedUrl });
+      }
+
+      case "person-finish": {
+        const name = cleanFrameName(body.name);
+        const { personId } = body;
+        if (!name) return fail(400, "invalid_name");
+        if (!isUuid(personId)) return fail(400, "invalid_person_id");
+        if (await deps.db.getPerson(personId)) return fail(409, "person_exists");
+
+        const path = personPath(personId);
+        const bytes = await deps.storage.download(FRAMES_BUCKET, path);
+        if (!bytes) return fail(400, "upload_missing");
+        if (!readPngSize(bytes)) {
+          await deps.storage.remove(FRAMES_BUCKET, [path]);
+          return fail(422, "not_a_png");
+        }
+
+        const row: PersonRow = {
+          id: personId,
+          name,
+          path,
+          is_active: true,
+          created_at: deps.now().toISOString(),
+        };
+        await deps.db.insertPerson(row);
+        return json(200, { status: "ok", person: personDto(row, deps) });
+      }
+
+      case "person-rename": {
+        const { personId } = body;
+        const name = cleanFrameName(body.name);
+        if (!isUuid(personId)) return fail(400, "invalid_person_id");
+        if (!name) return fail(400, "invalid_name");
+        if (!(await deps.db.getPerson(personId))) return fail(404, "person_not_found");
+        await deps.db.updatePerson(personId, { name });
+        return json(200, { status: "ok", name });
+      }
+
+      case "person-hide":
+      case "person-show": {
+        const { personId } = body;
+        if (!isUuid(personId)) return fail(400, "invalid_person_id");
+        if (!(await deps.db.getPerson(personId))) return fail(404, "person_not_found");
+        await deps.db.updatePerson(personId, { is_active: action === "person-show" });
+        return json(200, { status: "ok" });
+      }
+
+      case "person-delete": {
+        const { personId } = body;
+        if (!isUuid(personId)) return fail(400, "invalid_person_id");
+        const row = await deps.db.getPerson(personId);
+        if (!row) return fail(404, "person_not_found");
+        await deps.storage.remove(FRAMES_BUCKET, [row.path]);
+        await deps.db.deletePerson(personId);
         return json(200, { status: "ok" });
       }
 

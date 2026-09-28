@@ -6,6 +6,7 @@ import { builtinFrames } from "./layouts.js";
 import { readSlots } from "./compose.js";
 
 const CACHE_KEY = "frames";
+const PEOPLE_KEY = "people";
 
 export class FrameLibrary extends EventTarget {
   constructor(api, eventName) {
@@ -13,21 +14,24 @@ export class FrameLibrary extends EventTarget {
     this.api = api;
     this.builtins = builtinFrames(eventName);
     this.registered = []; // { id, name, layout, kind: "png", createdAt, blob }
+    this.people = []; // { id, name, blob } — cut-outs the guests pose with
     this.images = new Map(); // id → ImageBitmap
     this.slots = new Map(); // id → the cuts read out of that frame's transparency
     this.lastRefresh = 0;
   }
 
   async loadCache() {
-    const cached = (await kv.get(CACHE_KEY)) ?? [];
-    this.registered = cached.map((f) => ({ ...f, kind: "png" }));
+    const [frames, people] = await Promise.all([kv.get(CACHE_KEY), kv.get(PEOPLE_KEY)]);
+    this.registered = (frames ?? []).map((f) => ({ ...f, kind: "png" }));
+    this.people = people ?? [];
     this.changed();
   }
 
   // Replaces the list with the server's, downloading only frames we don't
   // already have. On any failure the cached list stays as it was.
   async refresh() {
-    const { frames } = await this.api.listFrames();
+    const { frames, people = [] } = await this.api.listFrames();
+    await this.refreshPeople(people);
     const known = new Map(this.registered.map((f) => [f.id, f]));
     const next = [];
     for (const remote of frames) {
@@ -41,7 +45,6 @@ export class FrameLibrary extends EventTarget {
         id: remote.id,
         name: remote.name,
         layout: remote.layout,
-        hasPeople: remote.hasPeople === true,
         createdAt: remote.createdAt,
         blob,
         kind: "png",
@@ -64,6 +67,35 @@ export class FrameLibrary extends EventTarget {
 
   byLayout(layout) {
     return [...this.registered.filter((f) => f.layout === layout), ...this.builtins.filter((f) => f.layout === layout)];
+  }
+
+  // Same trick as the frames: download a cut-out once, keep the blob on the
+  // device so the booth works without internet.
+  async refreshPeople(remote) {
+    const known = new Map(this.people.map((p) => [p.id, p]));
+    const next = [];
+    for (const person of remote) {
+      let blob = known.get(person.id)?.blob;
+      if (!blob) {
+        const res = await fetch(person.url, { cache: "no-store" });
+        if (!res.ok) throw new Error(`person download ${res.status}`);
+        blob = await res.blob();
+      }
+      next.push({ id: person.id, name: person.name, blob });
+    }
+    for (const id of this.images.keys()) {
+      if (!next.some((p) => p.id === id) && !this.registered.some((f) => f.id === id)) {
+        this.images.get(id)?.close?.();
+        this.images.delete(id);
+      }
+    }
+    this.people = next;
+    await kv.set(PEOPLE_KEY, next);
+  }
+
+  async personImage(person) {
+    if (!this.images.has(person.id)) this.images.set(person.id, await createImageBitmap(person.blob));
+    return this.images.get(person.id);
   }
 
   async imageFor(frame) {

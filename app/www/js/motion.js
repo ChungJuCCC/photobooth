@@ -10,7 +10,7 @@
 // WebViews fall back to MediaRecorder on a canvas.
 
 import { ArrayBufferTarget, Muxer } from "../vendor/mp4-muxer.mjs";
-import { centerCrop, drawMirrored } from "./camera.js";
+import { centerCrop, drawMirrored, drawPerson } from "./camera.js";
 import { paintPrint } from "./compose.js";
 import { captureSize, LAYOUTS, PHOTO_RATIO } from "./layouts.js";
 
@@ -86,6 +86,7 @@ export class ClipRecorder {
   constructor(video, ratio = PHOTO_RATIO) {
     this.video = video;
     this.ratio = ratio;
+    this.person = null; // whoever is posing in the take being recorded
     const { width, height } = captureSize(ratio, CLIP_LONG_SIDE);
     this.canvas = document.createElement("canvas");
     this.canvas.width = width;
@@ -107,6 +108,7 @@ export class ClipRecorder {
     this.busy = true;
     try {
       drawMirrored(this.ctx, this.video, centerCrop(vw, vh, this.ratio), this.canvas.width, this.canvas.height);
+      if (this.person) drawPerson(this.ctx, this.person, this.canvas.width, this.canvas.height);
       const frame = await new Promise((r) => this.canvas.toBlob(r, "image/jpeg", CLIP_QUALITY));
       if (frame) this.ring.push({ blob: frame, at: performance.now() });
       const cutoff = performance.now() - CLIP_WINDOW_MS;

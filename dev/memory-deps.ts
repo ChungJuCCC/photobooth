@@ -2,7 +2,7 @@
 // server. The PIN lock rules mirror public.check_admin_pin() in the migration.
 
 import type { Db, Deps, PinCheck, Storage } from "../supabase/functions/_shared/handlers.ts";
-import type { FrameRow, SessionRow } from "../supabase/functions/_shared/logic.ts";
+import type { FrameRow, PersonRow, SessionRow } from "../supabase/functions/_shared/logic.ts";
 
 export const PIN_MAX_ATTEMPTS = 5;
 export const PIN_LOCK_MS = 10 * 60 * 1000;
@@ -21,6 +21,7 @@ export function createMemoryDeps(options: MemoryOptions) {
   const now = options.now ?? (() => new Date());
   const sessions = new Map<string, SessionRow>();
   const frames = new Map<string, FrameRow>();
+  const people = new Map<string, PersonRow>();
   const objects = new Map<string, StoredObject>();
   const uploadTickets = new Map<string, Ticket>();
   const readTickets = new Map<string, Ticket>();
@@ -77,6 +78,26 @@ export function createMemoryDeps(options: MemoryOptions) {
     },
     async deleteFrame(id) {
       frames.delete(id);
+    },
+    async listPeople(includeHidden) {
+      return [...people.values()]
+        .filter((p) => includeHidden || p.is_active)
+        .sort((a, b) => a.created_at.localeCompare(b.created_at))
+        .map((p) => ({ ...p }));
+    },
+    async getPerson(id) {
+      const row = people.get(id);
+      return row ? { ...row } : null;
+    },
+    async insertPerson(row) {
+      people.set(row.id, { ...row });
+    },
+    async updatePerson(id, patch) {
+      const row = people.get(id);
+      if (row) people.set(id, { ...row, ...patch });
+    },
+    async deletePerson(id) {
+      people.delete(id);
     },
     async listRecentSessions(limit) {
       return [...sessions.values()]
@@ -158,5 +179,5 @@ export function createMemoryDeps(options: MemoryOptions) {
     },
   };
 
-  return { deps, storageHttp, sessions, frames, objects, admin };
+  return { deps, storageHttp, sessions, frames, people, objects, admin };
 }

@@ -1,19 +1,21 @@
 // Booth flow: frames → shoot 6 → pick 4 → result + QR.
 
 import { createApi } from "./api.js";
-import { Camera, CameraError } from "./camera.js";
+import { Camera, CameraError, drawPerson } from "./camera.js";
 import { canvasToBlob, renderComposite } from "./compose.js";
 import { deviceId as loadDeviceId } from "./db.js";
 import { FrameLibrary } from "./frames.js";
 import { UploadQueue } from "./queue.js";
 import { ClipRecorder, renderMotionPrint } from "./motion.js";
-import { frameRatio, LAYOUTS } from "./layouts.js";
+import { captureSize, frameRatio } from "./layouts.js";
 import { setupAdmin } from "./admin.js";
 import qrcode from "../vendor/qrcode.mjs";
 
 const config = window.BOOTH_CONFIG ?? {};
 
 const SHOTS = 6;
+const SHOTS_WITH_PEOPLE = 8; // more takes, so every pose gets a turn
+const OVERLAY_LONG_SIDE = 800; // the viewfinder copy of the person
 const PICKS = 4;
 const TICK_MS = 1000;
 const COUNTDOWN_TICKS = 4; // plus one for the very first shot, which needs settling time
@@ -142,8 +144,17 @@ async function startSession(frame) {
   state.frame = frame;
   state.sessionId = crypto.randomUUID();
 
+  // Whoever is registered poses with the guests, one per take, looping.
+  const cast = [];
+  for (const person of library.people) {
+    const image = await library.personImage(person).catch(() => null);
+    if (image) cast.push(image);
+  }
+  const shots = cast.length ? SHOTS_WITH_PEOPLE : SHOTS;
+  state.shotCount = shots;
+
   const strip = $("shot-strip");
-  strip.replaceChildren(...Array.from({ length: SHOTS }, () => document.createElement("li")));
+  strip.replaceChildren(...Array.from({ length: shots }, () => document.createElement("li")));
   $("shot-counter").textContent = "";
   $("shoot-title").textContent = "카메라를 봐주세요";
   show("shoot");
@@ -159,7 +170,7 @@ async function startSession(frame) {
   state.clips = null;
   // Viewfinder, takes and clips all take the shape of the chosen frame's cuts,
   // which for a registered PNG are read from its own transparency.
-  const frameImage = await library.imageFor(state.frame).catch(() => null);
+  await library.imageFor(state.frame).catch(() => null);
   const ratio = frameRatio(state.frame);
   document.documentElement.style.setProperty("--shot-ratio", String(ratio));
   let clips = null;
@@ -168,12 +179,14 @@ async function startSession(frame) {
     clips.start();
     await wait(1500);
 
-    for (let i = 0; i < SHOTS; i++) {
+    for (let i = 0; i < shots; i++) {
       if (state.cancelled) throw new ShootCancelled();
-      $("shot-counter").textContent = `${i + 1} / ${SHOTS}`;
-      $("shoot-title").textContent = i === 0 ? "자세를 잡아주세요" : ["좋아요, 다음 포즈", "표정을 바꿔볼까요", "한 번 더", "거의 다 왔어요", "마지막 한 장"][i - 1];
+      const person = cast.length ? cast[i % cast.length] : null;
+      clips.person = person;
+      $("shot-counter").textContent = `${i + 1} / ${shots}`;
+      $("shoot-title").textContent = shootTitle(i, shots, cast.length > 0);
       strip.children[i].classList.add("current");
-      showCutArtwork(state.frame, frameImage, i);
+      showPerson(person, ratio);
 
       for (let n = i === 0 ? COUNTDOWN_TICKS + 1 : COUNTDOWN_TICKS; n >= 1; n--) {
         const el = $("countdown");
@@ -190,7 +203,7 @@ async function startSession(frame) {
       void flash.offsetWidth;
       flash.classList.add("fire");
 
-      const shot = await camera.takePhoto(ratio);
+      const shot = await camera.takePhoto(ratio, person);
       clips.markShot(i);
       state.shots.push(shot);
       const img = document.createElement("img");
@@ -205,7 +218,7 @@ async function startSession(frame) {
     // until the guests have picked the four that go in the frame.
     clips.stop();
     state.clips = clips;
-    hideCutArtwork();
+    hidePerson();
     camera.stop();
 
     state.picked = [];
@@ -214,7 +227,7 @@ async function startSession(frame) {
   } catch (err) {
     clips?.release();
     state.clips = null;
-    hideCutArtwork();
+    hidePerson();
     camera.stop();
     // Walking away is not a fault; goHome has already shown the way back.
     if (!(err instanceof ShootCancelled)) showCameraError(err);
@@ -223,30 +236,35 @@ async function startSession(frame) {
   }
 }
 
-// Shows the part of the frame that will cover this cut, over the live camera.
-// With six takes and four cuts the last two repeat the first two: the cut a
-// photo ends up in is decided later, by the order the guests pick them.
-function showCutArtwork(frame, image, shotIndex) {
+// The person posing with the guests, drawn over the live camera exactly where
+// the shutter will put them.
+function showPerson(image, ratio) {
   const canvas = $("camera-overlay");
-  // Only frames registered as having someone in their cuts show them here.
-  const slots = frame.kind === "png" && frame.hasPeople && frame.slots ? frame.slots : null;
-  const slot = slots?.[shotIndex % slots.length];
-  if (!image || !slot) return hideCutArtwork();
-
-  // A frame may be exported at any multiple of the layout size.
-  const scale = image.width / LAYOUTS[frame.layout].width;
-  canvas.width = slot.w;
-  canvas.height = slot.h;
+  if (!image) return hidePerson();
+  const { width, height } = captureSize(ratio, OVERLAY_LONG_SIDE);
+  canvas.width = width;
+  canvas.height = height;
   const ctx = canvas.getContext("2d");
-  ctx.clearRect(0, 0, slot.w, slot.h);
-  ctx.drawImage(image, slot.x * scale, slot.y * scale, slot.w * scale, slot.h * scale, 0, 0, slot.w, slot.h);
+  ctx.clearRect(0, 0, width, height);
+  drawPerson(ctx, image, width, height);
   canvas.hidden = false;
 }
 
-function hideCutArtwork() {
+function hidePerson() {
   const canvas = $("camera-overlay");
   canvas.hidden = true;
   canvas.width = canvas.height = 0;
+}
+
+// What to say between takes. With someone posing along, the prompts point at
+// them instead of at the camera.
+function shootTitle(index, total, withPeople) {
+  if (index === 0) return withPeople ? "옆에 서서 자세를 잡아주세요" : "자세를 잡아주세요";
+  if (index === total - 1) return "마지막 한 장";
+  const alone = ["좋아요, 다음 포즈", "표정을 바꿔볼까요", "한 번 더", "거의 다 왔어요"];
+  const together = ["다음 사람이 나왔어요", "포즈를 따라해볼까요", "한 번 더", "좋아요, 계속", "이번엔 다르게", "거의 다 왔어요"];
+  const list = withPeople ? together : alone;
+  return list[(index - 1) % list.length];
 }
 
 function showCameraError(err) {

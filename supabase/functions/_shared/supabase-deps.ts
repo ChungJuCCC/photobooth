@@ -3,7 +3,7 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import type { Db, Deps, PinCheck, Storage } from "./handlers.ts";
-import type { FrameRow, SessionRow } from "./logic.ts";
+import type { FrameRow, PersonRow, SessionRow } from "./logic.ts";
 
 function secretKey(): string {
   const keys = Deno.env.get("SUPABASE_SECRET_KEYS");
@@ -70,6 +70,23 @@ export function supabaseDeps(): Deps {
     },
     async deleteFrame(id) {
       must(await client.from("frames").delete().eq("id", id));
+    },
+    async listPeople(includeHidden) {
+      let query = client.from("people").select("*").order("created_at", { ascending: true });
+      if (!includeHidden) query = query.eq("is_active", true);
+      return must(await query) as PersonRow[];
+    },
+    async getPerson(id) {
+      return must(await client.from("people").select("*").eq("id", id).maybeSingle()) as PersonRow | null;
+    },
+    async insertPerson(row) {
+      must(await client.from("people").insert(row));
+    },
+    async updatePerson(id, patch) {
+      must(await client.from("people").update(patch).eq("id", id));
+    },
+    async deletePerson(id) {
+      must(await client.from("people").delete().eq("id", id));
     },
     async listRecentSessions(limit) {
       return must(

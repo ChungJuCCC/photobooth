@@ -111,6 +111,9 @@
           <button class="desk-tab on" type="button" data-tab="frames" role="tab">
             프레임<b id="count-frames">·</b>
           </button>
+          <button class="desk-tab" type="button" data-tab="people" role="tab">
+            인물<b id="count-people">·</b>
+          </button>
           <button class="desk-tab" type="button" data-tab="shots" role="tab">
             찍은 사진<b id="count-shots">·</b>
           </button>
@@ -125,6 +128,15 @@
         </div>
         <p class="admin-message" id="admin-message" hidden></p>
         <ul class="ledger" id="admin-list"></ul>
+      </div>
+
+      <div class="admin-pane" data-tab="people" hidden>
+        <div class="desk-bar">
+          <p class="desk-note">손님 옆에 서서 같이 찍힐 사람이에요. 배경을 지운 PNG로 올리면 오른쪽에 서고, 사진과 영상에 함께 담깁니다. 한 명이라도 있으면 8번 찍습니다.</p>
+          <button class="button primary" id="person-add" type="button">인물 불러오기</button>
+        </div>
+        <p class="admin-message" id="person-message" hidden></p>
+        <ul class="ledger" id="person-list"></ul>
       </div>
 
       <div class="admin-pane" data-tab="shots" hidden>
@@ -165,10 +177,6 @@
           <span>이름</span>
           <input id="register-name" maxlength="30" autocomplete="off">
         </label>
-        <label class="check">
-          <input type="checkbox" id="register-people">
-          <span>칸 안에 사람이 있어요<small>찍는 동안 그 사람이 카메라 화면에 같이 보여요</small></span>
-        </label>
         <p class="lede" id="register-layout"></p>
         <div class="stack">
           <button class="button primary" id="register-submit" type="button">등록하기</button>
@@ -195,6 +203,29 @@
     </div>
   </dialog>
 
+  <!-- 인물 등록 -->
+  <dialog class="sheet" id="person-dialog">
+    <h2 id="person-title">인물 등록</h2>
+    <p class="sheet-message" id="person-dialog-message" role="alert"></p>
+    <div class="register-body" id="person-body">
+      <div class="person-preview" id="person-preview"></div>
+      <div class="register-form">
+        <label class="field">
+          <span>이름</span>
+          <input id="person-name" maxlength="30" autocomplete="off">
+        </label>
+        <div class="stack">
+          <button class="button primary" id="person-submit" type="button">등록하기</button>
+          <button class="button secondary" id="person-cancel" type="button">취소</button>
+        </div>
+      </div>
+    </div>
+    <div class="stack narrow" id="person-close-only" hidden>
+      <button class="button secondary" id="person-dismiss" type="button">닫기</button>
+    </div>
+  </dialog>
+
+  <input type="file" id="person-file" accept="image/*" hidden>
   <input type="file" id="frame-file" accept="image/*" hidden>
   <p class="toast" id="toast" role="status" hidden></p>
 

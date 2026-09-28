@@ -386,6 +386,40 @@ describe("handlers", () => {
     assert.equal((await admin({ action: "people", frameId: begin.frameId, hasPeople: "yes" })).status, 400);
   });
 
+  test("people are registered, listed for the booth, and removed", async () => {
+    const admin = (payload: Record<string, unknown>) =>
+      handleManageFrames(post("manage-frames", { pin: "4827", ...payload }), mem.deps);
+
+    const begin = await body(await admin({ action: "person-begin", name: "총 든 형" }));
+    assert.equal(begin.path, `people/${begin.personId}.png`);
+    mem.storageHttp.upload(uploadTicket(begin.signedUrl), pngHeader(800, 1200), "image/png");
+    const finish = await body(await admin({ action: "person-finish", personId: begin.personId, name: "총 든 형" }));
+    assert.equal(finish.person.name, "총 든 형");
+    assert.match(finish.person.url, /people\//);
+
+    // The booth gets people alongside the frames it can offer
+    const listed = await body(await handleListFrames(get("list-frames", "", { "x-booth-key": "dev-booth-key" }), mem.deps));
+    assert.equal(listed.people.length, 1);
+
+    // Hidden people stay out of the booth but remain in the admin screen
+    assert.equal((await admin({ action: "person-hide", personId: begin.personId })).status, 200);
+    const afterHide = await body(await handleListFrames(get("list-frames", "", { "x-booth-key": "dev-booth-key" }), mem.deps));
+    assert.equal(afterHide.people.length, 0);
+    assert.equal((await body(await admin({ action: "person-list" }))).people.length, 1);
+
+    assert.equal((await body(await admin({ action: "person-rename", personId: begin.personId, name: "새 이름" }))).name, "새 이름");
+
+    // Anything that isn't a PNG is refused and its upload thrown away
+    const bad = await body(await admin({ action: "person-begin", name: "잘못된 파일" }));
+    mem.storageHttp.upload(uploadTicket(bad.signedUrl), new Uint8Array([1, 2, 3, 4]), "image/png");
+    assert.equal((await admin({ action: "person-finish", personId: bad.personId, name: "잘못된 파일" })).status, 422);
+    assert.equal(mem.objects.has(`frames/people/${bad.personId}.png`), false);
+
+    assert.equal((await admin({ action: "person-delete", personId: begin.personId })).status, 200);
+    assert.equal(mem.objects.has(`frames/${begin.path}`), false);
+    assert.equal((await body(await admin({ action: "person-list" }))).people.length, 0);
+  });
+
   test("a frame can be renamed", async () => {
     const admin = (payload: Record<string, unknown>) =>
       handleManageFrames(post("manage-frames", { pin: "4827", ...payload }), mem.deps);
