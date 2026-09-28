@@ -181,6 +181,20 @@
     </div>
   </dialog>
 
+  <!-- 프레임 이름 바꾸기 -->
+  <dialog class="sheet" id="rename-dialog">
+    <h2>이름 바꾸기</h2>
+    <p class="sheet-message" id="rename-message" role="alert"></p>
+    <label class="field">
+      <span>프레임 이름</span>
+      <input id="rename-input" maxlength="30" autocomplete="off">
+    </label>
+    <div class="stack">
+      <button class="button primary" id="rename-save" type="button">저장</button>
+      <button class="button secondary" id="rename-cancel" type="button">취소</button>
+    </div>
+  </dialog>
+
   <input type="file" id="frame-file" accept="image/*" hidden>
   <p class="toast" id="toast" role="status" hidden></p>
 

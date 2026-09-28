@@ -386,6 +386,21 @@ describe("handlers", () => {
     assert.equal((await admin({ action: "people", frameId: begin.frameId, hasPeople: "yes" })).status, 400);
   });
 
+  test("a frame can be renamed", async () => {
+    const admin = (payload: Record<string, unknown>) =>
+      handleManageFrames(post("manage-frames", { pin: "4827", ...payload }), mem.deps);
+
+    const begin = await body(await admin({ action: "begin", name: "처음 이름", layout: "grid" }));
+    mem.storageHttp.upload(uploadTicket(begin.signedUrl), pngHeader(1080, 1920), "image/png");
+    await admin({ action: "finish", frameId: begin.frameId, name: "처음 이름", layout: "grid" });
+
+    assert.equal((await body(await admin({ action: "rename", frameId: begin.frameId, name: "  새 이름  " }))).name, "새 이름");
+    assert.equal((await body(await admin({ action: "list" }))).frames[0].name, "새 이름");
+
+    assert.equal((await admin({ action: "rename", frameId: begin.frameId, name: "   " })).status, 400);
+    assert.equal((await admin({ action: "rename", frameId: crypto.randomUUID(), name: "없는 것" })).status, 404);
+  });
+
   test("deleting a frame takes its PNG with it", async () => {
     const admin = (payload: Record<string, unknown>) =>
       handleManageFrames(post("manage-frames", { pin: "4827", ...payload }), mem.deps);

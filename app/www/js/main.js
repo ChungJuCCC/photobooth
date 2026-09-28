@@ -31,8 +31,12 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const api = createApi(config);
 const camera = new Camera($("camera-video"));
 
+// Thrown to unwind the shooting loop when someone leaves mid-shoot.
+class ShootCancelled extends Error {}
+
 const state = {
   screen: "frames",
+  cancelled: false,
   frame: null,
   sessionId: null,
   shots: [],
@@ -72,6 +76,8 @@ function toast(message) {
 }
 
 function goHome() {
+  state.cancelled = true;
+  camera.stop();
   releaseShots();
   state.clips?.release();
   state.clips = null;
@@ -131,6 +137,7 @@ function renderQueueNote() {
 async function startSession(frame) {
   if (state.shooting) return;
   state.shooting = true;
+  state.cancelled = false;
   releaseShots();
   state.frame = frame;
   state.sessionId = crypto.randomUUID();
@@ -162,6 +169,7 @@ async function startSession(frame) {
     await wait(1500);
 
     for (let i = 0; i < SHOTS; i++) {
+      if (state.cancelled) throw new ShootCancelled();
       $("shot-counter").textContent = `${i + 1} / ${SHOTS}`;
       $("shoot-title").textContent = i === 0 ? "자세를 잡아주세요" : ["좋아요, 다음 포즈", "표정을 바꿔볼까요", "한 번 더", "거의 다 왔어요", "마지막 한 장"][i - 1];
       strip.children[i].classList.add("current");
@@ -174,6 +182,7 @@ async function startSession(frame) {
         void el.offsetWidth;
         el.classList.add("tick");
         await wait(TICK_MS);
+        if (state.cancelled) throw new ShootCancelled();
       }
 
       const flash = $("flash");
@@ -207,7 +216,8 @@ async function startSession(frame) {
     state.clips = null;
     hideCutArtwork();
     camera.stop();
-    showCameraError(err);
+    // Walking away is not a fault; goHome has already shown the way back.
+    if (!(err instanceof ShootCancelled)) showCameraError(err);
   } finally {
     state.shooting = false;
   }
@@ -452,6 +462,18 @@ async function boot() {
   $("result-home").addEventListener("click", goHome);
   $("camera-retry").addEventListener("click", () => state.frame && startSession(state.frame));
   for (const el of document.querySelectorAll("[data-go-home]")) el.addEventListener("click", goHome);
+
+  // Android's back button: come back to the booth's first screen rather than
+  // leaving the app. Two history entries are kept so the WebView always has
+  // somewhere to go back to, and the handler puts one back each time.
+  history.replaceState({ booth: "home" }, "");
+  history.pushState({ booth: "step" }, "");
+  addEventListener("popstate", () => {
+    history.pushState({ booth: "step" }, "");
+    const dialog = document.querySelector("dialog[open]");
+    if (dialog) return dialog.close();
+    if (state.screen !== "frames") goHome();
+  });
 
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState !== "visible") return;

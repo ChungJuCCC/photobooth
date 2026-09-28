@@ -337,6 +337,16 @@ export function handleManageFrames(req: Request, deps: Deps): Promise<Response> 
         return json(200, { status: "ok" });
       }
 
+      case "rename": {
+        const { frameId } = body;
+        const name = cleanFrameName(body.name);
+        if (!isUuid(frameId)) return fail(400, "invalid_frame_id");
+        if (!name) return fail(400, "invalid_name");
+        if (!(await deps.db.getFrame(frameId))) return fail(404, "frame_not_found");
+        await deps.db.updateFrame(frameId, { name });
+        return json(200, { status: "ok", name });
+      }
+
       case "people": {
         const { frameId, hasPeople } = body;
         if (!isUuid(frameId)) return fail(400, "invalid_frame_id");

@@ -229,6 +229,15 @@ export function setupAdmin({ api, library, show, goHome, toast }) {
     });
     people.classList.toggle("on", f.hasPeople);
 
+    const rename = act("이름", async () => {
+      const name = await askName(f.name);
+      if (name === null) throw new Cancelled();
+      await api.manageFrames("rename", adminPin, { frameId: f.id, name });
+      await library.refresh().catch(() => {});
+      toast("이름을 바꿨습니다");
+    });
+    rename.classList.add("quiet");
+
     const visible = act(f.isActive ? "숨기기" : "보이기", async () => {
       await api.manageFrames(f.isActive ? "hide" : "show", adminPin, { frameId: f.id });
       toast(f.isActive ? "손님에게 숨겼습니다" : "손님에게 다시 보입니다");
@@ -245,7 +254,7 @@ export function setupAdmin({ api, library, show, goHome, toast }) {
 
     const actions = document.createElement("div");
     actions.className = "row-actions";
-    actions.append(people, visible, remove);
+    actions.append(people, rename, visible, remove);
 
     li.append(canvas, meta, actions);
     return li;
@@ -265,6 +274,41 @@ export function setupAdmin({ api, library, show, goHome, toast }) {
     adminMessage(err instanceof ApiError && err.isNetwork
       ? "인터넷 연결을 확인해주세요."
       : "처리하지 못했어요. 잠시 후 다시 시도해주세요.");
+  }
+
+  // Resolves to the new name, or null if the sheet was dismissed.
+  function askName(current) {
+    const dialog = $("rename-dialog");
+    const input = $("rename-input");
+    const message = $("rename-message");
+    input.value = current;
+    message.textContent = "";
+    dialog.showModal();
+    input.focus();
+    input.select();
+
+    return new Promise((resolve) => {
+      const finish = (value) => {
+        dialog.removeEventListener("close", onClose);
+        $("rename-save").removeEventListener("click", onSave);
+        $("rename-cancel").removeEventListener("click", onCancel);
+        if (dialog.open) dialog.close();
+        resolve(value);
+      };
+      const onSave = () => {
+        const name = input.value.replace(/\s+/g, " ").trim();
+        if (!name) {
+          message.textContent = "이름을 입력해주세요.";
+          return;
+        }
+        finish(name);
+      };
+      const onCancel = () => finish(null);
+      const onClose = () => finish(null);
+      $("rename-save").addEventListener("click", onSave);
+      $("rename-cancel").addEventListener("click", onCancel);
+      dialog.addEventListener("close", onClose);
+    });
   }
 
   // ── 찍은 사진 ────────────────────────────────────────────────────────
