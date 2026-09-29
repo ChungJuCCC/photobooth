@@ -52,6 +52,7 @@ export class FrameLibrary extends EventTarget {
         id: remote.id,
         name: remote.name,
         layout: remote.layout,
+        showWhileShooting: remote.hasPeople === true,
         createdAt: remote.createdAt,
         blob,
         kind: "png",

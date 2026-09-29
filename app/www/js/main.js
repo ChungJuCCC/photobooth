@@ -7,7 +7,7 @@ import { deviceId as loadDeviceId } from "./db.js";
 import { FrameLibrary } from "./frames.js";
 import { UploadQueue } from "./queue.js";
 import { ClipRecorder, renderMotionPrint } from "./motion.js";
-import { captureSize, frameRatio, slotRatio } from "./layouts.js";
+import { captureSize, frameRatio, LAYOUTS, slotRatio } from "./layouts.js";
 import { setupAdmin } from "./admin.js";
 import qrcode from "../vendor/qrcode.mjs";
 
@@ -239,7 +239,7 @@ async function startSession(frame) {
   state.clips = null;
   // Viewfinder, takes and clips all take the shape of the cuts they will land
   // in, which for a registered PNG is read from its own transparency.
-  if (state.frame) await library.imageFor(state.frame).catch(() => null);
+  const frameImage = state.frame ? await library.imageFor(state.frame).catch(() => null) : null;
   const ratio = state.frame ? frameRatio(state.frame) : slotRatio(PEOPLE_LAYOUT);
   document.documentElement.style.setProperty("--shot-ratio", String(ratio));
   let clips = null;
@@ -255,7 +255,10 @@ async function startSession(frame) {
       $("shot-counter").textContent = `${i + 1} / ${shots}`;
       $("shoot-title").textContent = shootTitle(i, shots, cast.length > 0);
       strip.children[i].classList.add("current");
-      showPerson(person, ratio);
+      // Whoever is posing, or — when the frame is already chosen — the part of
+      // it that will cover this cut.
+      if (person) showPerson(person, ratio);
+      else showCutArtwork(state.frame, frameImage, i);
 
       for (let n = i === 0 ? COUNTDOWN_TICKS + 1 : COUNTDOWN_TICKS; n >= 1; n--) {
         const el = $("countdown");
@@ -303,6 +306,25 @@ async function startSession(frame) {
   } finally {
     state.shooting = false;
   }
+}
+
+// The piece of the chosen frame that will land over this cut, drawn on the
+// live camera in the place it will cover, so people can pose around it.
+function showCutArtwork(frame, image, shotIndex) {
+  const canvas = $("camera-overlay");
+  // Only frames the admin switched on show themselves while people pose.
+  const slots = frame?.kind === "png" && frame.showWhileShooting && frame.slots ? frame.slots : null;
+  const slot = slots?.[shotIndex % slots.length];
+  if (!image || !slot) return hidePerson();
+
+  // A frame may be exported at any multiple of the layout size.
+  const scale = image.width / LAYOUTS[frame.layout].width;
+  canvas.width = slot.w;
+  canvas.height = slot.h;
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, slot.w, slot.h);
+  ctx.drawImage(image, slot.x * scale, slot.y * scale, slot.w * scale, slot.h * scale, 0, 0, slot.w, slot.h);
+  canvas.hidden = false;
 }
 
 // The person posing with the guests, drawn over the live camera exactly where

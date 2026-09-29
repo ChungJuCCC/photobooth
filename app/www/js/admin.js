@@ -200,6 +200,7 @@ export function setupAdmin({ api, library, show, goHome, toast }) {
     name.textContent = f.name;
     const detail = document.createElement("span");
     const marks = [LAYOUTS[f.layout].label];
+    if (f.hasPeople) marks.push("찍는 동안 화면에 보여줌");
     if (!f.isActive) marks.push("손님에게 안 보임");
     detail.textContent = marks.join(" · ");
     meta.append(name, detail);
@@ -221,6 +222,14 @@ export function setupAdmin({ api, library, show, goHome, toast }) {
       });
       return button;
     };
+
+    // Frames with artwork inside the cuts can show it over the live camera, so
+    // people know where to stand. Plain borders have nothing to show.
+    const preview = act(f.hasPeople ? "촬영 중 보여줌" : "촬영 중 안 보여줌", async () => {
+      await api.manageFrames("people", adminPin, { frameId: f.id, hasPeople: !f.hasPeople });
+      toast(f.hasPeople ? "찍을 때 안 보여줍니다" : "찍을 때 화면에 같이 보여줍니다");
+    });
+    preview.classList.toggle("on", f.hasPeople);
 
     const rename = act("이름", async () => {
       const name = await askName(f.name);
@@ -247,7 +256,7 @@ export function setupAdmin({ api, library, show, goHome, toast }) {
 
     const actions = document.createElement("div");
     actions.className = "row-actions";
-    actions.append(rename, visible, remove);
+    actions.append(preview, rename, visible, remove);
 
     li.append(canvas, meta, actions);
     return li;
