@@ -237,6 +237,17 @@
     </div>
   </dialog>
 
+  <!-- 사진 열기 (새 창이 막힌 기기용) -->
+  <dialog class="sheet" id="qr-sheet">
+    <h2 id="qr-sheet-title">사진 열기</h2>
+    <p class="sheet-message">이 기기에서 새 창이 열리지 않아요. 휴대폰으로 QR을 찍으면 사진과 영상을 받을 수 있어요.</p>
+    <canvas class="qr-sheet-code" id="qr-sheet-canvas"></canvas>
+    <p class="qr-sheet-url" id="qr-sheet-url"></p>
+    <div class="stack narrow">
+      <button class="button secondary" id="qr-sheet-close" type="button">닫기</button>
+    </div>
+  </dialog>
+
   <input type="file" id="person-file" accept="image/*" hidden>
   <input type="file" id="frame-file" accept="image/*" hidden>
   <p class="toast" id="toast" role="status" hidden></p>

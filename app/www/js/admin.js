@@ -3,6 +3,7 @@
 // action and only kept in memory while the admin screen is open.
 
 import { ApiError } from "./api.js";
+import qrcode from "../vendor/qrcode.mjs";
 import { readSlots, renderComposite } from "./compose.js";
 import { defaultFrameName, detectLayout, frameProblem, LAYOUTS, slotProblem } from "./layouts.js";
 
@@ -670,38 +671,98 @@ export function setupAdmin({ api, library, show, goHome, toast }) {
     }
   }
 
+  $("qr-sheet-close").addEventListener("click", () => $("qr-sheet").close());
+
+  function guestPageUrl(session) {
+    const base = window.BOOTH_CONFIG?.guestPageUrl;
+    if (!base) return null;
+    return `${base}?id=${encodeURIComponent(session.id)}`;
+  }
+
+  // Opens the guests' own page for this shoot. Where a new tab is refused —
+  // some tablets' browsers do — the address is shown as a QR to carry it to a
+  // phone instead.
+  function openSession(session) {
+    const url = guestPageUrl(session);
+    if (!url) return;
+    if (session.state !== "ready") {
+      shotsMessage("아직 올라가는 중이에요. 잠시 뒤 다시 눌러주세요.");
+      return;
+    }
+    shotsMessage("");
+    const opened = window.open(url, "_blank", "noopener");
+    if (!opened) showSessionQr(session, url);
+  }
+
+  function showSessionQr(session, url) {
+    $("qr-sheet-title").textContent = `${shotWhen(session.createdAt)}에 찍은 사진`;
+    $("qr-sheet-url").textContent = url;
+    drawQrCode($("qr-sheet-canvas"), url);
+    if (!$("qr-sheet").open) $("qr-sheet").showModal();
+  }
+
+  function drawQrCode(canvas, text) {
+    const qr = qrcode(0, "M");
+    qr.addData(text);
+    qr.make();
+    const modules = qr.getModuleCount();
+    const quiet = 2;
+    const scale = 6;
+    canvas.width = canvas.height = (modules + quiet * 2) * scale;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#FFFFFF";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "#000000";
+    for (let r = 0; r < modules; r++) {
+      for (let c = 0; c < modules; c++) {
+        if (qr.isDark(r, c)) ctx.fillRect((c + quiet) * scale, (r + quiet) * scale, scale, scale);
+      }
+    }
+  }
+
   function shotRow(session) {
     const li = document.createElement("li");
     li.className = "print-cell";
     if (session.id === justKept) li.classList.add("just-kept");
 
-    const select = document.createElement("button");
-    select.type = "button";
-    select.className = "shot-pick";
-    select.setAttribute("aria-pressed", "false");
-    select.setAttribute("aria-label", `${shotWhen(session.createdAt)}에 찍은 사진 고르기`);
+    // The print itself opens the page the guests get: photo, video, saving.
+    const open = document.createElement("button");
+    open.type = "button";
+    open.className = "shot-pick";
+    open.setAttribute("aria-label", `${shotWhen(session.createdAt)}에 찍은 사진과 영상 열기`);
     if (session.thumbUrl) {
       const img = document.createElement("img");
       img.src = session.thumbUrl;
       img.alt = "";
-      select.append(img);
+      open.append(img);
     } else {
-      select.classList.add("empty");
+      open.classList.add("empty");
     }
     if (session.keep) {
       const stamp = document.createElement("span");
       stamp.className = "stamp";
       stamp.textContent = "보관";
-      select.append(stamp);
+      open.append(stamp);
     }
-    select.addEventListener("click", () => {
+    open.addEventListener("click", () => openSession(session));
+
+    // Choosing one to delete is a separate, smaller target in the corner, so
+    // reaching for the photo never deletes anything by accident.
+    const tick = document.createElement("button");
+    tick.type = "button";
+    tick.className = "shot-tick";
+    tick.setAttribute("aria-pressed", "false");
+    tick.setAttribute("aria-label", `${shotWhen(session.createdAt)}에 찍은 사진 고르기`);
+    tick.textContent = "✓";
+    tick.addEventListener("click", () => {
       const on = !picked.has(session.id);
       if (on) picked.add(session.id);
       else picked.delete(session.id);
       li.classList.toggle("selected", on);
-      select.setAttribute("aria-pressed", String(on));
+      tick.setAttribute("aria-pressed", String(on));
       updateShotsBar();
     });
+    open.append(tick);
 
     // Taken at, and what happens to it next.
     const when = document.createElement("p");
@@ -737,7 +798,7 @@ export function setupAdmin({ api, library, show, goHome, toast }) {
       }
     });
 
-    li.append(select, when, keep);
+    li.append(open, when, keep);
     return li;
   }
 
