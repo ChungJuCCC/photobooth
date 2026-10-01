@@ -420,6 +420,38 @@ function showCameraError(err) {
 
 // ── 3. picking ──────────────────────────────────────────────────────────
 
+// Chooses the column count that makes the photos as large as they can be
+// while every one of them still fits the space without overlapping.
+function fitPickGrid() {
+  const grid = $("pick-grid");
+  const count = state.shots.length;
+  if (!count) return;
+
+  const styles = getComputedStyle(grid);
+  const gap = parseFloat(styles.columnGap) || 16;
+  const width = grid.clientWidth - parseFloat(styles.paddingLeft) - parseFloat(styles.paddingRight);
+  const height = grid.clientHeight - parseFloat(styles.paddingTop) - parseFloat(styles.paddingBottom);
+  const ratio = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--shot-ratio")) || 499 / 396;
+  if (!(width > 0 && height > 0)) return;
+
+  let best = 0;
+  let bestCols = Math.min(count, 3);
+  for (let cols = 1; cols <= count; cols++) {
+    const rows = Math.ceil(count / cols);
+    const byWidth = (width - gap * (cols - 1)) / cols;
+    const byHeight = ((height - gap * (rows - 1)) / rows) * ratio;
+    const cell = Math.min(byWidth, byHeight);
+    if (cell > best) {
+      best = cell;
+      bestCols = cols;
+    }
+  }
+
+  grid.style.setProperty("--pick-cols", String(bestCols));
+  grid.style.setProperty("--pick-cell", `${Math.floor(best)}px`);
+  grid.style.setProperty("--pick-cell-height", `${Math.floor(best / ratio)}px`);
+}
+
 function renderPick() {
   const grid = $("pick-grid");
   grid.replaceChildren();
@@ -436,6 +468,8 @@ function renderPick() {
     grid.append(cell);
   });
   updatePick();
+  // The grid has to be in the document before it can be measured.
+  requestAnimationFrame(fitPickGrid);
 }
 
 function togglePick(index) {
@@ -654,6 +688,11 @@ async function boot() {
   $("camera-retry").addEventListener("click", () => startSession(state.flow === "people-first" ? null : state.frame));
   $("with-people").addEventListener("click", () => startSession(null));
   for (const el of document.querySelectorAll("[data-go-home]")) el.addEventListener("click", goHome);
+
+  // An iPad turned on its side changes everything about how the photos fit.
+  addEventListener("resize", () => {
+    if (state.screen === "pick") fitPickGrid();
+  });
 
   // Android's back button: come back to the booth's first screen rather than
   // leaving the app. Two history entries are kept so the WebView always has
