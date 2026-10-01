@@ -1,6 +1,6 @@
 // Booth flow: frames → shoot 6 → pick 4 → result + QR.
 
-import { createApi } from "./api.js";
+import { ApiError, createApi } from "./api.js";
 import { Camera, CameraError, drawPerson } from "./camera.js";
 import { canvasToBlob, renderComposite } from "./compose.js";
 import { deviceId as loadDeviceId } from "./db.js";
@@ -190,6 +190,32 @@ function resetFrameScreen() {
   $("frames-title").textContent = "프레임을 골라주세요";
   $("frames-lede").textContent = "마음에 드는 디자인을 누르면 바로 촬영을 시작해요";
   renderCastButton();
+}
+
+// Why the booth cannot reach its own frames, in the words the person standing
+// at the tablet needs.
+function showBoothProblem(err) {
+  const note = $("booth-warning");
+  if (!err) {
+    note.hidden = true;
+    return;
+  }
+  const onWeb = (window.BOOTH_CONFIG?.version ?? "") === "웹";
+  const code = err instanceof ApiError ? err.code : "";
+  let text;
+  if (err instanceof ApiError && err.isNetwork) {
+    text = "인터넷에 연결되지 않아 새 프레임을 가져오지 못했어요. 지금 찍은 사진은 연결되면 자동으로 올라가요.";
+  } else if (code === "unauthorized") {
+    text = onWeb
+      ? "부스 키가 서버와 달라요. 주소 끝에 ?k=부스키 를 붙여서 다시 열어주세요."
+      : "부스 키가 서버와 달라요. 앱을 다시 설치하거나 관리자에게 문의해주세요.";
+  } else if (code === "server_misconfigured") {
+    text = "서버에 부스 키가 설정되지 않았어요. Supabase의 Edge Functions 설정을 확인해주세요.";
+  } else {
+    text = "프레임을 가져오지 못했어요. 잠시 후 다시 시도해요.";
+  }
+  note.textContent = text;
+  note.hidden = false;
 }
 
 function renderQueueNote() {
@@ -575,8 +601,16 @@ async function boot() {
   });
   await renderFrameRows();
   renderCastButton();
-  library.refresh().catch((err) => console.warn("frame refresh failed", err));
-  setInterval(() => library.refresh().catch(() => {}), FRAME_REFRESH_MS);
+  const refresh = () =>
+    library
+      .refresh()
+      .then(() => showBoothProblem(null))
+      .catch((err) => {
+        console.warn("frame refresh failed", err);
+        showBoothProblem(err);
+      });
+  refresh();
+  setInterval(refresh, FRAME_REFRESH_MS);
 
   queue.addEventListener("change", () => {
     renderQueueNote();

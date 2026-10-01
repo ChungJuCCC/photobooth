@@ -179,6 +179,15 @@ h2 {
   letter-spacing: -0.015em;
 }
 
+/* Said out loud on the booth's own screen: without it, a rejected key just
+   looks like a booth with no frames. */
+.booth-warning {
+  font-size: var(--t-small);
+  font-weight: 600;
+  color: var(--warn);
+  text-wrap: pretty;
+}
+
 .queue-note { font-size: var(--t-small); color: var(--muted); }
 
 .admin-hotspot {
