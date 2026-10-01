@@ -25,7 +25,14 @@ export function setupAdmin({ api, library, show, goHome, toast }) {
   function stampNow() {
     const d = new Date();
     const pad = (n) => String(n).padStart(2, "0");
-    $("desk-now").textContent = `${d.getMonth() + 1}월 ${d.getDate()}일 ${pad(d.getHours())}:${pad(d.getMinutes())} 기준`;
+    let fps = "";
+    try {
+      const measured = localStorage.getItem("capture-fps");
+      if (measured) fps = ` · 최근 촬영 영상 초당 ${measured}장`;
+    } catch {
+      // storage blocked; the clock alone is fine
+    }
+    $("desk-now").textContent = `${d.getMonth() + 1}월 ${d.getDate()}일 ${pad(d.getHours())}:${pad(d.getMinutes())} 기준${fps}`;
   }
 
   // ── entry gesture ────────────────────────────────────────────────────

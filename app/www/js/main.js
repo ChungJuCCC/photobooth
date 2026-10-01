@@ -225,6 +225,21 @@ function showBoothProblem(err) {
   note.hidden = false;
 }
 
+// How many frames a second this tablet really managed, kept so the admin
+// screen can show it. Without a number, "smoother" is only a hope.
+function rememberCaptureRate(clips) {
+  const takes = clips.clips.filter((clip) => clip && clip.length > 2);
+  if (!takes.length) return;
+  const frames = takes.reduce((sum, clip) => sum + clip.length, 0);
+  const seconds = takes.reduce((sum, clip) => sum + (clip[clip.length - 1].at - clip[0].at) / 1000, 0);
+  if (seconds <= 0) return;
+  try {
+    localStorage.setItem("capture-fps", (frames / seconds).toFixed(1));
+  } catch {
+    // Nothing to show later; the booth itself is unaffected.
+  }
+}
+
 function renderQueueNote() {
   const note = $("queue-note");
   note.hidden = queue.pending === 0;
@@ -322,6 +337,7 @@ async function startSession(frame) {
     // Sampling stops here so the camera can go off; the clips wait in memory
     // until the guests have picked the four that go in the frame.
     clips.stop();
+    rememberCaptureRate(clips);
     state.clips = clips;
     hidePerson();
     camera.stop();
