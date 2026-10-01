@@ -21,7 +21,11 @@ export function createApi(config) {
 
   async function call(name, { method = "POST", body, timeoutMs = 20_000 } = {}) {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, timeoutMs);
     let res;
     try {
       res = await fetch(`${config.functionsUrl}/${name}`, {
@@ -32,7 +36,8 @@ export function createApi(config) {
         cache: "no-store",
       });
     } catch {
-      throw new ApiError(0, "network");
+      // A slow server and a dead connection need different words.
+      throw new ApiError(0, timedOut ? "timeout" : "network");
     } finally {
       clearTimeout(timer);
     }

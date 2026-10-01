@@ -202,9 +202,16 @@ function showBoothProblem(err) {
   }
   const onWeb = (window.BOOTH_CONFIG?.version ?? "") === "웹";
   const code = err instanceof ApiError ? err.code : "";
+  const haveFrames = library.registered.length > 0;
   let text;
-  if (err instanceof ApiError && err.isNetwork) {
-    text = "인터넷에 연결되지 않아 새 프레임을 가져오지 못했어요. 지금 찍은 사진은 연결되면 자동으로 올라가요.";
+  if (code === "timeout") {
+    text = haveFrames
+      ? "서버 응답이 느려서 프레임 목록을 갱신하지 못했어요. 촬영은 그대로 됩니다."
+      : "서버 응답이 느려요. 잠시 뒤 다시 가져와요. 촬영은 기본 프레임으로 할 수 있어요.";
+  } else if (code === "network") {
+    text = navigator.onLine
+      ? "서버에 닿지 못했어요. 와이파이가 로그인이 필요한 곳인지, 보안 프로그램이 막고 있는지 확인해주세요."
+      : "인터넷에 연결되지 않았어요. 찍은 사진은 연결되면 자동으로 올라가요.";
   } else if (code === "unauthorized") {
     text = onWeb
       ? "부스 키가 서버와 달라요. 주소 끝에 ?k=부스키 를 붙여서 다시 열어주세요."
@@ -601,14 +608,21 @@ async function boot() {
   });
   await renderFrameRows();
   renderCastButton();
-  const refresh = () =>
-    library
-      .refresh()
-      .then(() => showBoothProblem(null))
-      .catch((err) => {
+  async function refresh() {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        await library.refresh();
+        return showBoothProblem(null);
+      } catch (err) {
         console.warn("frame refresh failed", err);
+        if (attempt === 0) {
+          await wait(4000);
+          continue;
+        }
         showBoothProblem(err);
-      });
+      }
+    }
+  }
   refresh();
   setInterval(refresh, FRAME_REFRESH_MS);
 
