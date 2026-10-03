@@ -241,6 +241,8 @@ h2 {
   box-shadow: var(--lift);
 }
 .camera video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); display: block; }
+/* This tablet has its mirror turned off: the view matches the photo again. */
+body.no-mirror .camera video { transform: none; }
 
 /* The piece of the frame that will land over this cut, shown while people
    pose so they can stand with the artwork instead of guessing where it is.
@@ -460,6 +462,9 @@ h2 {
 .ledger .meta span { font-size: var(--t-small); color: var(--muted); }
 .ledger li.hidden-frame canvas { opacity: 0.35; }
 .ledger li.hidden-frame .meta strong { color: var(--muted); }
+
+/* A setting has no print to show, so the words take the whole row. */
+.ledger li.setting { grid-template-columns: 1fr auto; }
 
 .row-actions { display: flex; gap: 8px; flex: none; }
 .row-actions .button { min-height: 54px; padding: 0 18px; font-size: var(--t-small); }

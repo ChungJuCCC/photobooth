@@ -1,5 +1,6 @@
 // Front camera and still photos.
 
+import { mirrorOn } from "./device.js";
 import { captureSize, PHOTO_RATIO } from "./layouts.js";
 
 const PHOTO_LONG_SIDE = 1000;
@@ -22,7 +23,13 @@ export function centerCrop(sw, sh, ratio) {
   return { sx: 0, sy: (sh - h) / 2, sw, sh: h };
 }
 
+// Mirrored by default, the way a booth camera has always been. A tablet whose
+// camera faces the room the other way round can turn it off for itself.
 export function drawMirrored(ctx, video, crop, width, height) {
+  if (!mirrorOn()) {
+    ctx.drawImage(video, crop.sx, crop.sy, crop.sw, crop.sh, 0, 0, width, height);
+    return;
+  }
   ctx.save();
   ctx.translate(width, 0);
   ctx.scale(-1, 1);
@@ -89,7 +96,7 @@ export class Camera {
     this.video.srcObject = null;
   }
 
-  // One mirrored still, in the shape of the chosen frame's cuts, with whoever
+  // One still, in the shape of the chosen frame's cuts, with whoever
   // is posing with the guests standing in it.
   async takePhoto(ratio = PHOTO_RATIO, person = null) {
     const { videoWidth: vw, videoHeight: vh } = this.video;

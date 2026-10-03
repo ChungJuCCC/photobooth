@@ -4,6 +4,7 @@ import { ApiError, createApi } from "./api.js";
 import { Camera, CameraError, drawPerson } from "./camera.js";
 import { canvasToBlob, renderComposite } from "./compose.js";
 import { deviceId as loadDeviceId } from "./db.js";
+import { loadDeviceSettings } from "./device.js";
 import { FrameLibrary } from "./frames.js";
 import { UploadQueue } from "./queue.js";
 import { ClipRecorder, renderMotionPrint } from "./motion.js";
@@ -644,6 +645,8 @@ function watchIdle() {
 // ── boot ────────────────────────────────────────────────────────────────
 
 async function boot() {
+  loadDeviceSettings();
+
   // If on-device storage is unavailable, still open the booth with the
   // built-in frames; uploads retry once storage recovers.
   const device = await loadDeviceId().catch((err) => {

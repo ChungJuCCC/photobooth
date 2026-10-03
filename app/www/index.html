@@ -121,6 +121,9 @@
           <button class="desk-tab" type="button" data-tab="shots" role="tab">
             찍은 사진<b id="count-shots">·</b>
           </button>
+          <button class="desk-tab" type="button" data-tab="device" role="tab">
+            이 태블릿
+          </button>
         </div>
         <button class="button secondary" id="admin-close" type="button">부스로 돌아가기</button>
       </header>
@@ -160,6 +163,23 @@
         </div>
         <p class="admin-message" id="shots-message" hidden></p>
         <ul class="sheet" id="shot-list"></ul>
+      </div>
+
+      <div class="admin-pane" data-tab="device" hidden>
+        <div class="desk-bar">
+          <p class="desk-note">여기 설정은 이 태블릿에만 적용돼요. 프레임이나 인물과 달리 다른 기기로 넘어가지 않습니다.</p>
+        </div>
+        <ul class="ledger">
+          <li class="setting">
+            <div class="meta">
+              <strong>좌우반전</strong>
+              <span id="mirror-state"></span>
+            </div>
+            <div class="row-actions">
+              <button class="button secondary" id="mirror-toggle" type="button" aria-pressed="true">켜짐</button>
+            </div>
+          </li>
+        </ul>
       </div>
     </section>
   </div>

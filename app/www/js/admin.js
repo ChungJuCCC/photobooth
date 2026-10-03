@@ -3,6 +3,7 @@
 // action and only kept in memory while the admin screen is open.
 
 import { ApiError } from "./api.js";
+import { mirrorOn, setMirror } from "./device.js";
 import qrcode from "../vendor/qrcode.mjs";
 import { readSlots, renderComposite } from "./compose.js";
 import { defaultFrameName, detectLayout, frameProblem, LAYOUTS, slotProblem } from "./layouts.js";
@@ -587,6 +588,29 @@ export function setupAdmin({ api, library, show, goHome, toast }) {
     return li;
   }
 
+  // ── 이 태블릿 ────────────────────────────────────────────────────────
+  // Kept on this device alone. Nothing here is sent to the server, so one
+  // tablet can face the room the other way round without the rest following.
+
+  function showMirror() {
+    const on = mirrorOn();
+    const button = $("mirror-toggle");
+    button.textContent = on ? "켜짐" : "꺼짐";
+    button.classList.toggle("on", on);
+    button.setAttribute("aria-pressed", String(on));
+    $("mirror-state").textContent = on
+      ? "거울처럼 좌우가 뒤집혀 보여요. 사진도 그 모습으로 남습니다."
+      : "보이는 그대로 찍혀요. 글씨가 뒤집히지 않습니다.";
+  }
+
+  $("mirror-toggle").addEventListener("click", () => {
+    setMirror(!mirrorOn());
+    showMirror();
+    toast(mirrorOn() ? "좌우반전을 켰어요. 이 태블릿만 바뀝니다." : "좌우반전을 껐어요. 이 태블릿만 바뀝니다.");
+  });
+
+  showMirror();
+
   // ── 찍은 사진 ────────────────────────────────────────────────────────
 
   const picked = new Set();
@@ -598,6 +622,7 @@ export function setupAdmin({ api, library, show, goHome, toast }) {
       for (const pane of document.querySelectorAll(".admin-pane")) pane.hidden = pane.dataset.tab !== tab.dataset.tab;
       if (tab.dataset.tab === "shots") loadShots();
       if (tab.dataset.tab === "people") loadPeople();
+      if (tab.dataset.tab === "device") showMirror();
     });
   }
 
