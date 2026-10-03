@@ -15,6 +15,10 @@ const config = window.BOOTH_CONFIG ?? {};
 
 const SHOTS = 6;
 const SHOTS_WITH_PEOPLE = 8; // more takes, so every pose gets a turn
+// A frame shown over the camera is shot cut by cut: four takes, one per cut,
+// each with time to get into the pose the artwork leaves room for.
+const SHOTS_PER_CUT = 4;
+const CUT_COUNTDOWN_TICKS = 6;
 const OVERLAY_LONG_SIDE = 800; // the viewfinder copy of the person
 const PICKS = 4;
 const TICK_MS = 1000;
@@ -83,6 +87,7 @@ function toast(message) {
 
 function goHome() {
   state.cancelled = true;
+  document.body.classList.remove("quiet-countdown");
   state.flow = "frame-first";
   resetFrameScreen();
   camera.stop();
@@ -267,8 +272,13 @@ async function startSession(frame) {
       if (image) cast.push(image);
     }
   }
-  const shots = cast.length ? SHOTS_WITH_PEOPLE : SHOTS;
+  // Shooting straight into the cuts of a frame that shows itself: one take per
+  // cut, no choosing afterwards, since every take has a place to go.
+  const cutByCut = !cast.length && !!(state.frame?.showWhileShooting && state.frame.slots);
+  const shots = cast.length ? SHOTS_WITH_PEOPLE : cutByCut ? SHOTS_PER_CUT : SHOTS;
   state.shotCount = shots;
+  document.body.classList.toggle("quiet-countdown", cutByCut);
+  $("shoot-timer").hidden = !cutByCut;
 
   const strip = $("shot-strip");
   strip.replaceChildren(...Array.from({ length: shots }, () => document.createElement("li")));
@@ -308,15 +318,21 @@ async function startSession(frame) {
       if (person) showPerson(person, ratio);
       else showCutArtwork(state.frame, frameImage, i);
 
-      for (let n = i === 0 ? COUNTDOWN_TICKS + 1 : COUNTDOWN_TICKS; n >= 1; n--) {
-        const el = $("countdown");
-        el.textContent = n;
-        el.classList.remove("tick");
-        void el.offsetWidth;
-        el.classList.add("tick");
+      const ticks = cutByCut ? CUT_COUNTDOWN_TICKS : i === 0 ? COUNTDOWN_TICKS + 1 : COUNTDOWN_TICKS;
+      for (let n = ticks; n >= 1; n--) {
+        if (cutByCut) {
+          $("shoot-timer").textContent = `${n}`;
+        } else {
+          const el = $("countdown");
+          el.textContent = n;
+          el.classList.remove("tick");
+          void el.offsetWidth;
+          el.classList.add("tick");
+        }
         await wait(TICK_MS);
         if (state.cancelled) throw new ShootCancelled();
       }
+      if (cutByCut) $("shoot-timer").textContent = "";
 
       const flash = $("flash");
       flash.classList.remove("fire");
@@ -341,6 +357,13 @@ async function startSession(frame) {
     state.clips = clips;
     hidePerson();
     camera.stop();
+
+    if (cutByCut) {
+      // Every take already belongs to a cut, in the order they were taken.
+      state.picked = state.shots.map((_, i) => i);
+      await finishSession();
+      return;
+    }
 
     state.picked = [];
     renderPick();
