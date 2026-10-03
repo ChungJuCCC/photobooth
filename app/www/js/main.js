@@ -15,9 +15,9 @@ const config = window.BOOTH_CONFIG ?? {};
 
 const SHOTS = 6;
 const SHOTS_WITH_PEOPLE = 8; // more takes, so every pose gets a turn
-// A frame shown over the camera is shot cut by cut: four takes, one per cut,
-// each with time to get into the pose the artwork leaves room for.
-const SHOTS_PER_CUT = 4;
+// A frame shown over the camera gives each cut two goes, with time to get
+// into the pose the artwork leaves room for.
+const SHOTS_PER_CUT = 8;
 const CUT_COUNTDOWN_TICKS = 6;
 const OVERLAY_LONG_SIDE = 800; // the viewfinder copy of the person
 const PICKS = 4;
@@ -272,8 +272,8 @@ async function startSession(frame) {
       if (image) cast.push(image);
     }
   }
-  // Shooting straight into the cuts of a frame that shows itself: one take per
-  // cut, no choosing afterwards, since every take has a place to go.
+  // Shooting into the cuts of a frame that shows itself: the artwork cycles
+  // through the cuts, so each one comes round twice.
   const cutByCut = !cast.length && !!(state.frame?.showWhileShooting && state.frame.slots);
   const shots = cast.length ? SHOTS_WITH_PEOPLE : cutByCut ? SHOTS_PER_CUT : SHOTS;
   state.shotCount = shots;
@@ -351,13 +351,6 @@ async function startSession(frame) {
     state.clips = clips;
     hidePerson();
     camera.stop();
-
-    if (cutByCut) {
-      // Every take already belongs to a cut, in the order they were taken.
-      state.picked = state.shots.map((_, i) => i);
-      await finishSession();
-      return;
-    }
 
     state.picked = [];
     renderPick();

@@ -340,7 +340,7 @@ h2 {
 
 .pick-foot { display: flex; gap: var(--gap); align-items: flex-end; }
 .pick-foot .stack { flex: 1; }
-.pick-preview { height: 22vh; width: auto; box-shadow: 0 0 0 1px var(--line); }
+.pick-preview { height: 32vh; width: auto; box-shadow: 0 0 0 1px var(--line); }
 
 /* ── 4. result ────────────────────────────────────────────────────── */
 
@@ -707,7 +707,7 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.45); }
   /* 3. pick: takes on the left, the decision on the right */
   .screen[data-screen="pick"] {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) clamp(230px, 25vw, 320px);
+    grid-template-columns: minmax(0, 1fr) clamp(280px, 30vw, 400px);
     grid-template-rows: auto minmax(0, 1fr);
     gap: clamp(10px, 1.6vh, 20px) clamp(24px, 3vw, 44px);
   }
@@ -721,7 +721,9 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.45); }
   .pick-foot .stack { flex: none; }
   /* Sized by height so the canvas keeps its own shape, with no empty
      box around it. */
-  .pick-preview { height: 38vh; width: auto; max-width: 100%; box-shadow: none; align-self: center; }
+  /* Big enough to judge from: this is the thing being assembled, and the
+     photos beside it are only the parts. */
+  .pick-preview { height: min(58vh, 100%); width: auto; max-width: 100%; box-shadow: none; align-self: center; }
 
   /* 4. result: the print holds the long edge, the QR card sits beside it */
   .screen[data-screen="result"] {
