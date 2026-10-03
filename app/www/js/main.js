@@ -279,8 +279,6 @@ async function startSession(frame) {
   state.shotCount = shots;
   document.body.classList.toggle("quiet-countdown", cutByCut);
 
-  const strip = $("shot-strip");
-  strip.replaceChildren(...Array.from({ length: shots }, () => document.createElement("li")));
   $("shot-counter").textContent = "";
   $("shoot-title").textContent = "카메라를 봐주세요";
   show("shoot");
@@ -311,7 +309,6 @@ async function startSession(frame) {
       clips.person = person;
       $("shot-counter").textContent = `${i + 1} / ${shots}`;
       $("shoot-title").textContent = shootTitle(i, shots, cast.length > 0);
-      strip.children[i].classList.add("current");
       // Whoever is posing, or — when the frame is already chosen — the part of
       // it that will cover this cut.
       if (person) showPerson(person, ratio);
@@ -336,11 +333,6 @@ async function startSession(frame) {
       const shot = await camera.takePhoto(ratio, person);
       clips.markShot(i);
       state.shots.push(shot);
-      const img = document.createElement("img");
-      img.src = shot.url;
-      img.alt = "";
-      strip.children[i].classList.remove("current");
-      strip.children[i].replaceChildren(img);
       await wait(350);
     }
 
