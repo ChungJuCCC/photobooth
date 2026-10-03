@@ -278,7 +278,6 @@ async function startSession(frame) {
   const shots = cast.length ? SHOTS_WITH_PEOPLE : cutByCut ? SHOTS_PER_CUT : SHOTS;
   state.shotCount = shots;
   document.body.classList.toggle("quiet-countdown", cutByCut);
-  $("shoot-timer").hidden = !cutByCut;
 
   const strip = $("shot-strip");
   strip.replaceChildren(...Array.from({ length: shots }, () => document.createElement("li")));
@@ -320,19 +319,14 @@ async function startSession(frame) {
 
       const ticks = cutByCut ? CUT_COUNTDOWN_TICKS : i === 0 ? COUNTDOWN_TICKS + 1 : COUNTDOWN_TICKS;
       for (let n = ticks; n >= 1; n--) {
-        if (cutByCut) {
-          $("shoot-timer").textContent = `${n}`;
-        } else {
-          const el = $("countdown");
-          el.textContent = n;
-          el.classList.remove("tick");
-          void el.offsetWidth;
-          el.classList.add("tick");
-        }
+        const el = $("countdown");
+        el.textContent = n;
+        el.classList.remove("tick");
+        void el.offsetWidth;
+        el.classList.add("tick");
         await wait(TICK_MS);
         if (state.cancelled) throw new ShootCancelled();
       }
-      if (cutByCut) $("shoot-timer").textContent = "";
 
       const flash = $("flash");
       flash.classList.remove("fire");

@@ -221,18 +221,15 @@ h2 {
 
 .counter { font-size: var(--t-h2); font-weight: 600; font-variant-numeric: tabular-nums; }
 
-/* With the frame drawn over the camera, a numeral across the view hides the
-   very thing people are lining up with. The count sits above instead, and the
-   camera gives up the room for it. */
-.shoot-timer {
-  font-size: clamp(36px, 8vh, 76px);
-  font-weight: 800;
-  line-height: 1;
-  letter-spacing: -0.04em;
-  font-variant-numeric: tabular-nums;
+/* With the frame drawn over the camera, a numeral filling the view hides the
+   very thing people are lining up with. It moves to the top of the view and
+   gives up about half its size; the camera keeps all of its own. */
+.quiet-countdown .countdown {
+  place-items: start center;
+  padding-top: clamp(10px, 2.5vh, 32px);
+  font-size: min(26vw, 17vh);
+  -webkit-text-stroke-width: clamp(2px, 0.35vw, 4px);
 }
-.quiet-countdown .countdown { display: none; }
-.quiet-countdown .camera { max-height: 74%; }
 
 .camera {
   position: relative;
