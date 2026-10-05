@@ -53,6 +53,7 @@ export class FrameLibrary extends EventTarget {
         name: remote.name,
         layout: remote.layout,
         showWhileShooting: remote.hasPeople === true,
+        secret: remote.secret === true,
         createdAt: remote.createdAt,
         blob,
         kind: "png",
@@ -73,8 +74,14 @@ export class FrameLibrary extends EventTarget {
     this.changed();
   }
 
+  // What the guests may choose from. Secret frames are downloaded and kept
+  // like any other — the operator shoots with them from the desk — but they
+  // never appear on the booth's own screen.
   byLayout(layout) {
-    return [...this.registered.filter((f) => f.layout === layout), ...this.builtins.filter((f) => f.layout === layout)];
+    return [
+      ...this.registered.filter((f) => f.layout === layout && !f.secret),
+      ...this.builtins.filter((f) => f.layout === layout),
+    ];
   }
 
   // Same trick as the frames: download a cut-out once, keep the blob on the

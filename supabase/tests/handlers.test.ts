@@ -386,6 +386,31 @@ describe("handlers", () => {
     assert.equal((await admin({ action: "people", frameId: begin.frameId, hasPeople: "yes" })).status, 400);
   });
 
+  test("a secret frame stays off the guests' screen but in the booth's library", async () => {
+    const admin = (payload: Record<string, unknown>) =>
+      handleManageFrames(post("manage-frames", { pin: "4827", ...payload }), mem.deps);
+
+    const begin = await body(await admin({ action: "begin", name: "시크릿", layout: "grid" }));
+    mem.storageHttp.upload(uploadTicket(begin.signedUrl), pngHeader(1080, 1920), "image/png");
+    const made = await body(await admin({ action: "finish", frameId: begin.frameId, name: "시크릿", layout: "grid" }));
+    assert.equal(made.frame.secret, false);
+
+    assert.equal((await admin({ action: "secret", frameId: begin.frameId, secret: true })).status, 200);
+
+    // The booth still receives it — the tablet needs the artwork to shoot with —
+    // and the desk sees that it is a secret one.
+    const booth = await body(
+      await handleListFrames(get("list-frames", "", { "x-booth-key": "dev-booth-key" }), mem.deps),
+    );
+    assert.equal(booth.frames.find((f: { id: string }) => f.id === begin.frameId).secret, true);
+    const desk = await body(await admin({ action: "list" }));
+    assert.equal(desk.frames.find((f: { id: string }) => f.id === begin.frameId).secret, true);
+
+    assert.equal((await admin({ action: "secret", frameId: begin.frameId, secret: false })).status, 200);
+    assert.equal((await admin({ action: "secret", frameId: begin.frameId, secret: "yes" })).status, 400);
+    assert.equal((await admin({ action: "secret", frameId: crypto.randomUUID(), secret: true })).status, 404);
+  });
+
   test("people are registered, listed for the booth, and removed", async () => {
     const admin = (payload: Record<string, unknown>) =>
       handleManageFrames(post("manage-frames", { pin: "4827", ...payload }), mem.deps);

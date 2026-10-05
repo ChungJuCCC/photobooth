@@ -45,6 +45,7 @@ export type FrameRow = {
   path: string;
   is_active: boolean;
   has_people: boolean;
+  secret: boolean;
   created_at: string;
 };
 

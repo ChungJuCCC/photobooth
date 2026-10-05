@@ -11,7 +11,7 @@ import { defaultFrameName, detectLayout, frameProblem, LAYOUTS, slotProblem } fr
 const HOLD_MS = 3000;
 const $ = (id) => document.getElementById(id);
 
-export function setupAdmin({ api, library, show, goHome, toast }) {
+export function setupAdmin({ api, library, show, goHome, toast, startSession }) {
   let pin = "";
   let adminPin = null;
   let pending = null; // { layout, canvas } of the PNG being registered
@@ -210,6 +210,7 @@ export function setupAdmin({ api, library, show, goHome, toast }) {
     const detail = document.createElement("span");
     const marks = [LAYOUTS[f.layout].label];
     if (f.hasPeople) marks.push("찍는 동안 화면에 보여줌");
+    if (f.secret) marks.push("관리자만 보임");
     if (!f.isActive) marks.push("손님에게 안 보임");
     detail.textContent = marks.join(" · ");
     meta.append(name, detail);
@@ -240,6 +241,39 @@ export function setupAdmin({ api, library, show, goHome, toast }) {
     });
     preview.classList.toggle("on", f.hasPeople);
 
+    // A frame the guests never see on the booth's screen. It still rides down
+    // to the tablet, so the operator can start a shoot with it from here.
+    const secret = act(f.secret ? "손님에게도 보이기" : "관리자만 보이기", async () => {
+      await api.manageFrames("secret", adminPin, { frameId: f.id, secret: !f.secret });
+      await library.refresh().catch(() => {});
+      toast(f.secret ? "손님 화면에도 나옵니다" : "관리자만 쓸 수 있는 프레임이 됐어요");
+    });
+    secret.classList.toggle("on", f.secret);
+
+    // Shooting a secret frame has to start somewhere, and the booth's own
+    // screen is the one place it must not appear. This one leaves the desk
+    // rather than reloading it, so it is not built with act().
+    const shoot = document.createElement("button");
+    shoot.type = "button";
+    shoot.className = "button secondary";
+    shoot.textContent = "이걸로 찍기";
+    shoot.hidden = !f.secret;
+    shoot.addEventListener("click", async () => {
+      shoot.disabled = true;
+      let frame = library.registered.find((r) => r.id === f.id);
+      if (!frame) {
+        await library.refresh().catch(() => {});
+        frame = library.registered.find((r) => r.id === f.id);
+      }
+      shoot.disabled = false;
+      if (!frame) {
+        adminMessage("이 프레임을 아직 내려받지 못했어요. 인터넷을 확인하고 다시 눌러주세요.");
+        return;
+      }
+      adminMessage("");
+      startSession(frame);
+    });
+
     const rename = act("이름", async () => {
       const name = await askName(f.name);
       if (name === null) throw new Cancelled();
@@ -265,7 +299,7 @@ export function setupAdmin({ api, library, show, goHome, toast }) {
 
     const actions = document.createElement("div");
     actions.className = "row-actions";
-    actions.append(preview, rename, visible, remove);
+    actions.append(shoot, preview, secret, rename, visible, remove);
 
     li.append(canvas, meta, actions);
     return li;

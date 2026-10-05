@@ -466,7 +466,9 @@ body.no-mirror .camera video { transform: none; }
 /* A setting has no print to show, so the words take the whole row. */
 .ledger li.setting { grid-template-columns: 1fr auto; }
 
-.row-actions { display: flex; gap: 8px; flex: none; }
+/* Six actions on one row is as many as a frame ever has; on a narrow tablet
+   they wrap rather than pushing the name off the edge. */
+.row-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; flex: none; }
 .row-actions .button { min-height: 54px; padding: 0 18px; font-size: var(--t-small); }
 .row-actions .button.on { background: var(--ink); color: var(--paper); border-color: var(--ink); }
 

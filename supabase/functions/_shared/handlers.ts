@@ -269,6 +269,7 @@ function frameDto(row: FrameRow, deps: Deps) {
     url: deps.storage.publicUrl(FRAMES_BUCKET, row.path),
     isActive: row.is_active,
     hasPeople: row.has_people,
+    secret: row.secret === true,
     createdAt: row.created_at,
   };
 }
@@ -352,6 +353,7 @@ export function handleManageFrames(req: Request, deps: Deps): Promise<Response> 
           path,
           is_active: true,
           has_people: body.hasPeople === true,
+          secret: body.secret === true,
           created_at: deps.now().toISOString(),
         };
         await deps.db.insertFrame(row);
@@ -460,6 +462,17 @@ export function handleManageFrames(req: Request, deps: Deps): Promise<Response> 
         if (typeof hasPeople !== "boolean") return fail(400, "invalid_body");
         if (!(await deps.db.getFrame(frameId))) return fail(404, "frame_not_found");
         await deps.db.updateFrame(frameId, { has_people: hasPeople });
+        return json(200, { status: "ok" });
+      }
+
+      // Kept out of the guests' sight but still in the tablet's library, so
+      // the operator can start a shoot with it from the desk.
+      case "secret": {
+        const { frameId, secret } = body;
+        if (!isUuid(frameId)) return fail(400, "invalid_frame_id");
+        if (typeof secret !== "boolean") return fail(400, "invalid_body");
+        if (!(await deps.db.getFrame(frameId))) return fail(404, "frame_not_found");
+        await deps.db.updateFrame(frameId, { secret });
         return json(200, { status: "ok" });
       }
 

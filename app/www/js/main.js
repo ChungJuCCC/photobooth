@@ -717,7 +717,7 @@ async function boot() {
     if (state.screen === "frames" && Date.now() - library.lastRefresh > FRAME_STALE_MS) library.refresh().catch(() => {});
   });
 
-  setupAdmin({ api, library, show, goHome, toast });
+  setupAdmin({ api, library, show, goHome, toast, startSession });
   watchIdle();
 
   // Native only: keep the screen on while the booth is running.
