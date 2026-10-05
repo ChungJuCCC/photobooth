@@ -74,14 +74,15 @@ export class FrameLibrary extends EventTarget {
     this.changed();
   }
 
-  // What the guests may choose from. Secret frames are downloaded and kept
-  // like any other — the operator shoots with them from the desk — but they
-  // never appear on the booth's own screen.
+  // What the guests may choose from: the frames this booth was given, and
+  // nothing else. The plain white and black ones are no longer offered —
+  // they stay in the code only as the stand-in a shoot uses before its frame
+  // has been chosen.
+  //
+  // Secret frames are downloaded and kept like any other — the operator
+  // shoots with them from the desk — but they never appear on this screen.
   byLayout(layout) {
-    return [
-      ...this.registered.filter((f) => f.layout === layout && !f.secret),
-      ...this.builtins.filter((f) => f.layout === layout),
-    ];
+    return this.registered.filter((f) => f.layout === layout && !f.secret);
   }
 
   // Same trick as the frames: download a cut-out once, keep the blob on the

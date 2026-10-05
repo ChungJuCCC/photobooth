@@ -181,6 +181,8 @@ h2 {
 
 /* Said out loud on the booth's own screen: without it, a rejected key just
    looks like a booth with no frames. */
+.frames-empty { text-align: center; color: var(--muted); font-size: var(--t-small); }
+
 .booth-warning {
   font-size: var(--t-small);
   font-weight: 600;

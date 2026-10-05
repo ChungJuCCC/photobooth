@@ -121,10 +121,12 @@ async function renderFrameRows() {
   for (const row of document.querySelectorAll(".frame-row")) {
     const layout = row.dataset.layout;
     row.replaceChildren();
+    const frames = library.byLayout(layout);
     // Shots taken with the cast are portrait, so only frames with portrait
-    // cuts can hold them.
-    row.parentElement.hidden = state.pickingFrame && layout !== PEOPLE_LAYOUT;
-    for (const frame of library.byLayout(layout)) {
+    // cuts can hold them. A kind with nothing registered keeps its heading to
+    // itself rather than standing over an empty row.
+    row.parentElement.hidden = !frames.length || (state.pickingFrame && layout !== PEOPLE_LAYOUT);
+    for (const frame of frames) {
       if (token !== frameRenderToken) return;
       const card = document.createElement("button");
       card.type = "button";
@@ -141,12 +143,17 @@ async function renderFrameRows() {
       renderComposite(canvas, frame, [], image, { placeholder: "#E9E9E6", scale: 0.35 });
     }
   }
+  // Nothing to choose from at all: say so plainly, rather than showing a
+  // title over blank paper.
+  const empty = ![...document.querySelectorAll(".frame-row")].some((r) => r.childElementCount);
+  $("frames-empty").hidden = !empty;
 }
 
 // The cast shoots in this layout's cut shape, whatever frame is chosen after.
 const PEOPLE_LAYOUT = "grid";
 
-// Stand-in used to preview a shoot whose frame has not been chosen yet.
+// Stand-in used to preview a shoot whose frame has not been chosen yet. Plain
+// paper, never offered on the frame screen; the real frame lands at the end.
 function plainPeopleFrame() {
   return library.builtins.find((f) => f.layout === PEOPLE_LAYOUT) ?? library.builtins[0];
 }
