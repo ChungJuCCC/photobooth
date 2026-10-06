@@ -69,8 +69,10 @@ export type Deps = {
   newId: () => string;
 };
 
-// How many recent shoots the admin screen lists at once.
-export const ADMIN_SESSION_LIMIT = 60;
+// How many recent shoots the admin screen lists at once. Kept shoots are not
+// purged, so they pile up over an event; the listing has to reach further than
+// a day's worth or the oldest of them become unreachable from the desk.
+export const ADMIN_SESSION_LIMIT = 200;
 
 export const SESSIONS_BUCKET = "sessions";
 export const FRAMES_BUCKET = "frames";
@@ -489,19 +491,21 @@ export function handleManageFrames(req: Request, deps: Deps): Promise<Response> 
       // ── the shoots themselves ────────────────────────────────────────
       case "sessions": {
         const rows = await deps.db.listRecentSessions(ADMIN_SESSION_LIMIT);
-        const sessions = [];
-        for (const row of rows) {
-          sessions.push({
+        // Signed one after another, two hundred prints would keep the desk
+        // waiting on a round trip at a time.
+        const now = deps.now();
+        const sessions = await Promise.all(
+          rows.map(async (row) => ({
             id: row.id,
             createdAt: row.created_at,
             expiresAt: row.expires_at,
             keep: row.keep,
-            state: sessionState(row.id, row, deps.now()),
+            state: sessionState(row.id, row, now),
             thumbUrl: row.uploaded_at
               ? await deps.storage.createSignedUrl(SESSIONS_BUCKET, row.photo_path, SIGNED_DOWNLOAD_SECONDS)
               : null,
-          });
-        }
+          })),
+        );
         return json(200, { sessions });
       }
 
